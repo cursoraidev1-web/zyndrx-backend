@@ -58,24 +58,65 @@ export class AuthService {
       });
 
       if (authError || !authData.user) {
-        logger.error('Supabase auth error', { error: authError });
-        throw new AppError('Failed to create user account', 500);
+        logger.error('Database error creating new user', {
+          status: authError?.status,
+          name: authError?.name,
+          code: authError?.code,
+          fullError: authError,
+        });
+        
+        console.log('🔴 Supabase Auth Error:', JSON.stringify({
+          message: authError?.message,
+          status: authError?.status,
+          name: authError?.name,
+          code: authError?.code,
+          fullError: authError,
+        }, null, 2));
+        
+        throw new Error(
+          `Failed to create user account: Database error: The database trigger may be failing. Check if handle_new_user() function and trigger exist in Supabase. Original: ${authError?.message}`
+        );
       }
 
-      // User profile is automatically created by the trigger
-      // Wait a moment for the trigger to complete
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Wait for trigger to complete
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Fetch the created user
-      const { data: user, error: userError } = await supabaseAdmin
+      // Try to fetch the user profile created by trigger
+      let { data: user, error: userError } = await supabaseAdmin
         .from('users')
         .select('id, email, full_name, role, avatar_url')
         .eq('id', authData.user.id)
         .single();
 
+      // If trigger failed, create user profile manually
       if (userError || !user) {
-        logger.error('Failed to fetch created user', { error: userError });
-        throw new AppError('User created but profile fetch failed', 500);
+        logger.warn('Trigger failed, creating user profile manually', { 
+          userId: authData.user.id,
+          error: userError 
+        });
+
+        // Manually insert user profile
+        const { data: newUser, error: insertError } = await supabaseAdmin
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            email: data.email,
+            full_name: data.fullName,
+            role: data.role || 'developer',
+          })
+          .select('id, email, full_name, role, avatar_url')
+          .single();
+
+        if (insertError || !newUser) {
+          logger.error('Failed to create user profile manually', { error: insertError });
+          
+          // Try to clean up the auth user
+          await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+          
+          throw new AppError('Failed to create user profile', 500);
+        }
+
+        user = newUser;
       }
 
       // Generate JWT token
