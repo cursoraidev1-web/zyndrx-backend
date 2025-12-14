@@ -10,7 +10,7 @@ import logger from './utils/logger';
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
 import projectsRoutes from './modules/projects/projects.routes';
-// import prdRoutes from './modules/prds/prds.routes';
+import prdsRoutes from './modules/prds/prds.routes';
 // import taskRoutes from './modules/tasks/tasks.routes';
 // import notificationRoutes from './modules/notifications/notifications.routes';
 // import documentRoutes from './modules/documents/documents.routes';
@@ -78,8 +78,8 @@ class App {
     // API routes
     this.app.use(`${apiPrefix}/auth`, authRoutes);
     this.app.use(`${apiPrefix}/projects`, projectsRoutes);
+    this.app.use(`${apiPrefix}/prds`, prdsRoutes);
     // TODO: Uncomment as modules are implemented
-    // this.app.use(`${apiPrefix}/prds`, prdRoutes);
     // this.app.use(`${apiPrefix}/tasks`, taskRoutes);
     // this.app.use(`${apiPrefix}/notifications`, notificationRoutes);
     // this.app.use(`${apiPrefix}/documents`, documentRoutes);
