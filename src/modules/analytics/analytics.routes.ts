@@ -9,31 +9,17 @@ const analyticsController = new AnalyticsController();
 router.use(authenticate);
 
 /**
- * @route   GET /api/v1/analytics/project/:projectId
- * @desc    Get project analytics and statistics
+ * @route   GET /api/v1/analytics/me
+ * @desc    Get user analytics/dashboard
  * @access  Private
  */
-router.get('/project/:projectId', analyticsController.getProjectAnalytics);
+router.get('/me', analyticsController.getUserAnalytics);
 
 /**
- * @route   GET /api/v1/analytics/project/:projectId/velocity
- * @desc    Get task completion velocity
- * @access  Private
+ * @route   GET /api/v1/analytics/projects/:projectId
+ * @desc    Get project analytics
+ * @access  Private (Project members)
  */
-router.get('/project/:projectId/velocity', analyticsController.getTaskVelocity);
-
-/**
- * @route   GET /api/v1/analytics/project/:projectId/team
- * @desc    Get team performance metrics
- * @access  Private
- */
-router.get('/project/:projectId/team', analyticsController.getTeamPerformance);
-
-/**
- * @route   GET /api/v1/analytics/user
- * @desc    Get current user's analytics
- * @access  Private
- */
-router.get('/user', analyticsController.getUserAnalytics);
+router.get('/projects/:projectId', analyticsController.getProjectAnalytics);
 
 export default router;

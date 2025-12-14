@@ -11,10 +11,10 @@ import logger from './utils/logger';
 import authRoutes from './modules/auth/auth.routes';
 import projectsRoutes from './modules/projects/projects.routes';
 import prdsRoutes from './modules/prds/prds.routes';
-// import taskRoutes from './modules/tasks/tasks.routes';
-// import notificationRoutes from './modules/notifications/notifications.routes';
-// import documentRoutes from './modules/documents/documents.routes';
-// import analyticsRoutes from './modules/analytics/analytics.routes';
+import tasksRoutes from './modules/tasks/tasks.routes';
+import documentsRoutes from './modules/documents/documents.routes';
+import notificationsRoutes from './modules/notifications/notifications.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
 // import githubRoutes from './modules/github/github.routes';
 
 class App {
@@ -79,11 +79,11 @@ class App {
     this.app.use(`${apiPrefix}/auth`, authRoutes);
     this.app.use(`${apiPrefix}/projects`, projectsRoutes);
     this.app.use(`${apiPrefix}/prds`, prdsRoutes);
-    // TODO: Uncomment as modules are implemented
-    // this.app.use(`${apiPrefix}/tasks`, taskRoutes);
-    // this.app.use(`${apiPrefix}/notifications`, notificationRoutes);
-    // this.app.use(`${apiPrefix}/documents`, documentRoutes);
-    // this.app.use(`${apiPrefix}/analytics`, analyticsRoutes);
+    this.app.use(`${apiPrefix}/tasks`, tasksRoutes);
+    this.app.use(`${apiPrefix}/documents`, documentsRoutes);
+    this.app.use(`${apiPrefix}/notifications`, notificationsRoutes);
+    this.app.use(`${apiPrefix}/analytics`, analyticsRoutes);
+    // TODO: GitHub integration coming soon
     // this.app.use(`${apiPrefix}/github`, githubRoutes);
 
     // Welcome route

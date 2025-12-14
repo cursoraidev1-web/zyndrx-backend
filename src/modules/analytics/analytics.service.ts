@@ -2,277 +2,182 @@ import { supabaseAdmin } from '../../config/supabase';
 import { AppError } from '../../middleware/error.middleware';
 import logger from '../../utils/logger';
 
-export interface ProjectAnalytics {
-  totalTasks: number;
-  completedTasks: number;
-  inProgressTasks: number;
-  blockedTasks: number;
-  completionRate: number;
-  totalPRDs: number;
-  approvedPRDs: number;
-  pendingPRDs: number;
-  totalMembers: number;
-  tasksByPriority: Record<string, number>;
-  tasksByStatus: Record<string, number>;
-  recentActivity: any[];
-}
-
-export interface UserAnalytics {
-  totalTasksAssigned: number;
-  completedTasks: number;
-  inProgressTasks: number;
-  overdueTasks: number;
-  completionRate: number;
-  averageCompletionTime: number | null;
-  tasksByProject: any[];
-}
-
 export class AnalyticsService {
+  /**
+   * Get project analytics/dashboard
+   */
   async getProjectAnalytics(projectId: string, userId: string) {
-    // Verify access
-    await this.verifyProjectAccess(projectId, userId);
-
     try {
-      // Get task statistics
+      // Check if user has access to the project
+      const hasAccess = await this.checkProjectAccess(projectId, userId);
+      if (!hasAccess) {
+        throw new AppError('Project not found or access denied', 404);
+      }
+
+      // Get project details
+      const { data: project } = await supabaseAdmin
+        .from('projects')
+        .select('*, project_members(count)')
+        .eq('id', projectId)
+        .single();
+
+      // Get tasks stats
       const { data: tasks } = await supabaseAdmin
         .from('tasks')
-        .select('status, priority, created_at, completed_at')
+        .select('status, priority, completed_at')
         .eq('project_id', projectId);
 
-      const totalTasks = tasks?.length || 0;
-      const completedTasks = tasks?.filter((t) => t.status === 'completed').length || 0;
-      const inProgressTasks = tasks?.filter((t) => t.status === 'in_progress').length || 0;
-      const blockedTasks = tasks?.filter((t) => t.status === 'blocked').length || 0;
-
-      // Calculate completion rate
-      const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-      // Task distribution by priority
-      const tasksByPriority = tasks?.reduce((acc: any, task) => {
-        acc[task.priority] = (acc[task.priority] || 0) + 1;
-        return acc;
-      }, {}) || {};
-
-      // Task distribution by status
-      const tasksByStatus = tasks?.reduce((acc: any, task) => {
-        acc[task.status] = (acc[task.status] || 0) + 1;
-        return acc;
-      }, {}) || {};
-
-      // Get PRD statistics
+      // Get PRDs stats
       const { data: prds } = await supabaseAdmin
         .from('prds')
         .select('status')
         .eq('project_id', projectId);
 
-      const totalPRDs = prds?.length || 0;
-      const approvedPRDs = prds?.filter((p) => p.status === 'approved').length || 0;
-      const pendingPRDs = prds?.filter((p) => p.status === 'in_review').length || 0;
-
-      // Get member count
-      const { count: totalMembers } = await supabaseAdmin
-        .from('project_members')
+      // Get documents count
+      const { count: documentsCount } = await supabaseAdmin
+        .from('documents')
         .select('*', { count: 'exact', head: true })
         .eq('project_id', projectId);
 
-      // Get recent activity (last 10 audit logs)
-      const { data: recentActivity } = await supabaseAdmin
-        .from('audit_logs')
-        .select(
-          `
-          *,
-          user:users(full_name, avatar_url)
-        `
-        )
-        .eq('resource_type', 'task')
-        .or(`resource_type.eq.prd,resource_type.eq.project`)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      const analytics: ProjectAnalytics = {
-        totalTasks,
-        completedTasks,
-        inProgressTasks,
-        blockedTasks,
-        completionRate: Math.round(completionRate * 10) / 10,
-        totalPRDs,
-        approvedPRDs,
-        pendingPRDs,
-        totalMembers: totalMembers || 0,
-        tasksByPriority,
-        tasksByStatus,
-        recentActivity: recentActivity || [],
+      // Calculate task statistics
+      const taskStats = {
+        total: tasks?.length || 0,
+        byStatus: {
+          todo: tasks?.filter((t) => t.status === 'todo').length || 0,
+          in_progress: tasks?.filter((t) => t.status === 'in_progress').length || 0,
+          in_review: tasks?.filter((t) => t.status === 'in_review').length || 0,
+          completed: tasks?.filter((t) => t.status === 'completed').length || 0,
+          blocked: tasks?.filter((t) => t.status === 'blocked').length || 0,
+        },
+        byPriority: {
+          low: tasks?.filter((t) => t.priority === 'low').length || 0,
+          medium: tasks?.filter((t) => t.priority === 'medium').length || 0,
+          high: tasks?.filter((t) => t.priority === 'high').length || 0,
+          urgent: tasks?.filter((t) => t.priority === 'urgent').length || 0,
+        },
+        completionRate: tasks?.length
+          ? (
+              (tasks.filter((t) => t.status === 'completed').length / tasks.length) *
+              100
+            ).toFixed(2)
+          : '0.00',
       };
 
-      return analytics;
-    } catch (error) {
-      logger.error('Failed to get project analytics', { error });
-      throw new AppError('Failed to get project analytics', 500);
-    }
-  }
-
-  async getUserAnalytics(userId: string) {
-    try {
-      // Get user's tasks
-      const { data: tasks } = await supabaseAdmin
-        .from('tasks')
-        .select(
-          `
-          *,
-          project:projects(id, name)
-        `
-        )
-        .eq('assigned_to', userId);
-
-      const totalTasksAssigned = tasks?.length || 0;
-      const completedTasks = tasks?.filter((t) => t.status === 'completed').length || 0;
-      const inProgressTasks = tasks?.filter((t) => t.status === 'in_progress').length || 0;
-
-      // Calculate overdue tasks
-      const now = new Date();
-      const overdueTasks =
-        tasks?.filter((t) => {
-          if (!t.due_date || t.status === 'completed') return false;
-          return new Date(t.due_date) < now;
-        }).length || 0;
-
-      // Calculate completion rate
-      const completionRate = totalTasksAssigned > 0 ? (completedTasks / totalTasksAssigned) * 100 : 0;
-
-      // Calculate average completion time (in days)
-      const completedTasksWithTime = tasks?.filter(
-        (t) => t.status === 'completed' && t.completed_at && t.created_at
-      );
-      let averageCompletionTime = null;
-      if (completedTasksWithTime && completedTasksWithTime.length > 0) {
-        const totalTime = completedTasksWithTime.reduce((sum, task) => {
-          const created = new Date(task.created_at).getTime();
-          const completed = new Date(task.completed_at).getTime();
-          return sum + (completed - created);
-        }, 0);
-        averageCompletionTime = totalTime / completedTasksWithTime.length / (1000 * 60 * 60 * 24); // Convert to days
-      }
-
-      // Tasks grouped by project
-      const tasksByProject = tasks?.reduce((acc: any[], task) => {
-        const existing = acc.find((p) => p.projectId === task.project.id);
-        if (existing) {
-          existing.total++;
-          if (task.status === 'completed') existing.completed++;
-        } else {
-          acc.push({
-            projectId: task.project.id,
-            projectName: task.project.name,
-            total: 1,
-            completed: task.status === 'completed' ? 1 : 0,
-          });
-        }
-        return acc;
-      }, []) || [];
-
-      const analytics: UserAnalytics = {
-        totalTasksAssigned,
-        completedTasks,
-        inProgressTasks,
-        overdueTasks,
-        completionRate: Math.round(completionRate * 10) / 10,
-        averageCompletionTime: averageCompletionTime ? Math.round(averageCompletionTime * 10) / 10 : null,
-        tasksByProject,
+      // Calculate PRD statistics
+      const prdStats = {
+        total: prds?.length || 0,
+        draft: prds?.filter((p) => p.status === 'draft').length || 0,
+        in_review: prds?.filter((p) => p.status === 'in_review').length || 0,
+        approved: prds?.filter((p) => p.status === 'approved').length || 0,
+        rejected: prds?.filter((p) => p.status === 'rejected').length || 0,
       };
-
-      return analytics;
-    } catch (error) {
-      logger.error('Failed to get user analytics', { error });
-      throw new AppError('Failed to get user analytics', 500);
-    }
-  }
-
-  async getTaskVelocity(projectId: string, userId: string, days = 30) {
-    await this.verifyProjectAccess(projectId, userId);
-
-    try {
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-
-      const { data: tasks } = await supabaseAdmin
-        .from('tasks')
-        .select('completed_at, created_at')
-        .eq('project_id', projectId)
-        .eq('status', 'completed')
-        .gte('completed_at', startDate.toISOString());
-
-      // Group by week
-      const velocity: Record<string, number> = {};
-      tasks?.forEach((task) => {
-        if (!task.completed_at) return;
-        const date = new Date(task.completed_at);
-        const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - date.getDay());
-        const weekKey = weekStart.toISOString().split('T')[0];
-        velocity[weekKey] = (velocity[weekKey] || 0) + 1;
-      });
 
       return {
-        period: `${days} days`,
-        totalCompleted: tasks?.length || 0,
-        velocityByWeek: velocity,
-        averagePerWeek: tasks ? Math.round((tasks.length / days) * 7 * 10) / 10 : 0,
+        project: {
+          id: project?.id,
+          name: project?.name,
+          status: project?.status,
+          memberCount: project?.project_members?.[0]?.count || 0,
+        },
+        tasks: taskStats,
+        prds: prdStats,
+        documents: {
+          total: documentsCount || 0,
+        },
       };
     } catch (error) {
-      logger.error('Failed to get task velocity', { error });
-      throw new AppError('Failed to get task velocity', 500);
+      if (error instanceof AppError) throw error;
+      logger.error('Get project analytics error', { error });
+      throw new AppError('Failed to fetch project analytics', 500);
     }
   }
 
-  async getTeamPerformance(projectId: string, userId: string) {
-    await this.verifyProjectAccess(projectId, userId);
-
+  /**
+   * Get user analytics/dashboard
+   */
+  async getUserAnalytics(userId: string) {
     try {
-      const { data: members } = await supabaseAdmin
-        .from('project_members')
-        .select(
-          `
-          user_id,
-          user:users(id, full_name, avatar_url, role)
-        `
-        )
-        .eq('project_id', projectId);
+      // Get user's projects count
+      const { count: projectsCount } = await supabaseAdmin
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .or(`owner_id.eq.${userId},project_members.user_id.eq.${userId}`);
 
-      if (!members) return [];
+      // Get tasks assigned to user
+      const { data: assignedTasks } = await supabaseAdmin
+        .from('tasks')
+        .select('status, priority, due_date')
+        .eq('assigned_to', userId);
 
-      const performance = await Promise.all(
-        members.map(async (member: any) => {
-          const { data: tasks } = await supabaseAdmin
-            .from('tasks')
-            .select('status, completed_at, created_at')
-            .eq('project_id', projectId)
-            .eq('assigned_to', member.user_id);
+      // Get tasks created by user
+      const { count: createdTasksCount } = await supabaseAdmin
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('created_by', userId);
 
-          const total = tasks?.length || 0;
-          const completed = tasks?.filter((t) => t.status === 'completed').length || 0;
-          const inProgress = tasks?.filter((t) => t.status === 'in_progress').length || 0;
+      // Get PRDs created by user
+      const { count: prdsCount } = await supabaseAdmin
+        .from('prds')
+        .select('*', { count: 'exact', head: true })
+        .eq('created_by', userId);
 
-          return {
-            userId: member.user_id,
-            fullName: member.user.full_name,
-            avatarUrl: member.user.avatar_url,
-            role: member.user.role,
-            totalTasks: total,
-            completedTasks: completed,
-            inProgressTasks: inProgress,
-            completionRate: total > 0 ? Math.round((completed / total) * 100 * 10) / 10 : 0,
-          };
-        })
-      );
+      // Get unread notifications
+      const { count: unreadNotificationsCount } = await supabaseAdmin
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('is_read', false);
 
-      return performance.sort((a, b) => b.completedTasks - a.completedTasks);
+      // Calculate task statistics
+      const taskStats = {
+        assigned: assignedTasks?.length || 0,
+        created: createdTasksCount || 0,
+        byStatus: {
+          todo: assignedTasks?.filter((t) => t.status === 'todo').length || 0,
+          in_progress: assignedTasks?.filter((t) => t.status === 'in_progress').length || 0,
+          in_review: assignedTasks?.filter((t) => t.status === 'in_review').length || 0,
+          completed: assignedTasks?.filter((t) => t.status === 'completed').length || 0,
+          blocked: assignedTasks?.filter((t) => t.status === 'blocked').length || 0,
+        },
+        overdue: assignedTasks?.filter(
+          (t) =>
+            t.due_date &&
+            new Date(t.due_date) < new Date() &&
+            t.status !== 'completed'
+        ).length || 0,
+      };
+
+      return {
+        projects: {
+          total: projectsCount || 0,
+        },
+        tasks: taskStats,
+        prds: {
+          created: prdsCount || 0,
+        },
+        notifications: {
+          unread: unreadNotificationsCount || 0,
+        },
+      };
     } catch (error) {
-      logger.error('Failed to get team performance', { error });
-      throw new AppError('Failed to get team performance', 500);
+      if (error instanceof AppError) throw error;
+      logger.error('Get user analytics error', { error });
+      throw new AppError('Failed to fetch user analytics', 500);
     }
   }
 
-  private async verifyProjectAccess(projectId: string, userId: string) {
+  // ============ HELPER METHODS ============
+
+  private async checkProjectAccess(projectId: string, userId: string): Promise<boolean> {
+    const { data: project } = await supabaseAdmin
+      .from('projects')
+      .select('id, owner_id')
+      .eq('id', projectId)
+      .single();
+
+    if (!project) return false;
+    if (project.owner_id === userId) return true;
+
     const { data: member } = await supabaseAdmin
       .from('project_members')
       .select('id')
@@ -280,16 +185,6 @@ export class AnalyticsService {
       .eq('user_id', userId)
       .single();
 
-    if (!member) {
-      const { data: project } = await supabaseAdmin
-        .from('projects')
-        .select('owner_id')
-        .eq('id', projectId)
-        .single();
-
-      if (!project || project.owner_id !== userId) {
-        throw new AppError('Access denied to this project', 403);
-      }
-    }
+    return !!member;
   }
 }
