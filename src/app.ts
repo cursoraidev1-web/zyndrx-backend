@@ -9,13 +9,13 @@ import logger from './utils/logger';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
-import projectRoutes from './modules/projects/project.routes';
-import prdRoutes from './modules/prd/prd.routes';
-import taskRoutes from './modules/tasks/task.routes';
-import notificationRoutes from './modules/notifications/notification.routes';
-import documentRoutes from './modules/documents/document.routes';
-import analyticsRoutes from './modules/analytics/analytics.routes';
-import githubRoutes from './modules/github/github.routes';
+import projectsRoutes from './modules/projects/projects.routes';
+// import prdRoutes from './modules/prds/prds.routes';
+// import taskRoutes from './modules/tasks/tasks.routes';
+// import notificationRoutes from './modules/notifications/notifications.routes';
+// import documentRoutes from './modules/documents/documents.routes';
+// import analyticsRoutes from './modules/analytics/analytics.routes';
+// import githubRoutes from './modules/github/github.routes';
 
 class App {
   public app: Application;
@@ -77,13 +77,14 @@ class App {
 
     // API routes
     this.app.use(`${apiPrefix}/auth`, authRoutes);
-    this.app.use(`${apiPrefix}/projects`, projectRoutes);
-    this.app.use(`${apiPrefix}/prds`, prdRoutes);
-    this.app.use(`${apiPrefix}/tasks`, taskRoutes);
-    this.app.use(`${apiPrefix}/notifications`, notificationRoutes);
-    this.app.use(`${apiPrefix}/documents`, documentRoutes);
-    this.app.use(`${apiPrefix}/analytics`, analyticsRoutes);
-    this.app.use(`${apiPrefix}/github`, githubRoutes);
+    this.app.use(`${apiPrefix}/projects`, projectsRoutes);
+    // TODO: Uncomment as modules are implemented
+    // this.app.use(`${apiPrefix}/prds`, prdRoutes);
+    // this.app.use(`${apiPrefix}/tasks`, taskRoutes);
+    // this.app.use(`${apiPrefix}/notifications`, notificationRoutes);
+    // this.app.use(`${apiPrefix}/documents`, documentRoutes);
+    // this.app.use(`${apiPrefix}/analytics`, analyticsRoutes);
+    // this.app.use(`${apiPrefix}/github`, githubRoutes);
 
     // Welcome route
     this.app.get('/', (req, res) => {
