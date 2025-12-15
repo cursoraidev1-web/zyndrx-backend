@@ -15,7 +15,7 @@ import tasksRoutes from './modules/tasks/tasks.routes';
 import documentsRoutes from './modules/documents/documents.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
-// import githubRoutes from './modules/github/github.routes';
+import githubRoutes from './modules/github/github.routes';
 
 class App {
   public app: Application;
@@ -83,8 +83,7 @@ class App {
     this.app.use(`${apiPrefix}/documents`, documentsRoutes);
     this.app.use(`${apiPrefix}/notifications`, notificationsRoutes);
     this.app.use(`${apiPrefix}/analytics`, analyticsRoutes);
-    // TODO: GitHub integration coming soon
-    // this.app.use(`${apiPrefix}/github`, githubRoutes);
+    this.app.use(`${apiPrefix}/github`, githubRoutes);
 
     // Welcome route
     this.app.get('/', (req, res) => {

@@ -1,66 +1,83 @@
 import { Router } from 'express';
 import { GitHubController } from './github.controller';
-import { authenticate } from '../../middleware/auth.middleware';
-import { auditLog } from '../../middleware/audit.middleware';
+import { authenticate, optionalAuth } from '../../middleware/auth.middleware';
+import { validateBody } from '../../middleware/validation.middleware';
+import {
+  createGitHubIntegrationSchema,
+  updateGitHubIntegrationSchema,
+  linkCommitToTaskSchema,
+} from './github.validation';
 
 const router = Router();
 const githubController = new GitHubController();
 
 /**
- * @route   POST /api/v1/github/webhook/:id
- * @desc    Handle GitHub webhook
- * @access  Public (verified by signature)
- */
-router.post('/webhook/:id', githubController.handleWebhook);
-
-// All other routes require authentication
-router.use(authenticate);
-
-/**
  * @route   POST /api/v1/github/integrations
- * @desc    Create GitHub integration
- * @access  Private (Project owner)
+ * @desc    Create GitHub integration for a project
+ * @access  Private (Project owner/admin)
  */
 router.post(
   '/integrations',
-  auditLog('create', 'github_integration'),
+  authenticate,
+  validateBody(createGitHubIntegrationSchema),
   githubController.createIntegration
 );
 
 /**
- * @route   GET /api/v1/github/integrations/project/:projectId
- * @desc    Get project's GitHub integration
- * @access  Private
+ * @route   GET /api/v1/github/integrations/:projectId
+ * @desc    Get GitHub integration for a project
+ * @access  Private (Project members)
  */
-router.get('/integrations/project/:projectId', githubController.getProjectIntegration);
+router.get(
+  '/integrations/:projectId',
+  authenticate,
+  githubController.getProjectIntegration
+);
 
 /**
  * @route   PUT /api/v1/github/integrations/:id
  * @desc    Update GitHub integration
- * @access  Private (Project owner)
+ * @access  Private (Project owner/admin)
  */
 router.put(
   '/integrations/:id',
-  auditLog('update', 'github_integration'),
+  authenticate,
+  validateBody(updateGitHubIntegrationSchema),
   githubController.updateIntegration
 );
 
 /**
  * @route   DELETE /api/v1/github/integrations/:id
  * @desc    Delete GitHub integration
- * @access  Private (Project owner)
+ * @access  Private (Project owner/admin)
  */
-router.delete(
-  '/integrations/:id',
-  auditLog('delete', 'github_integration'),
-  githubController.deleteIntegration
-);
+router.delete('/integrations/:id', authenticate, githubController.deleteIntegration);
 
 /**
- * @route   GET /api/v1/github/projects/:projectId/commits
- * @desc    Get project commits from GitHub
- * @access  Private
+ * @route   POST /api/v1/github/webhook/:projectId
+ * @desc    Handle GitHub webhook (public endpoint)
+ * @access  Public (verified by webhook signature)
  */
-router.get('/projects/:projectId/commits', githubController.getProjectCommits);
+router.post('/webhook/:projectId', githubController.handleWebhook);
+
+/**
+ * @route   GET /api/v1/github/commits
+ * @desc    Get commits with filtering
+ * @query   projectId, taskId, page, limit
+ * @access  Private (Project members)
+ */
+router.get('/commits', authenticate, githubController.getCommits);
+
+/**
+ * @route   PATCH /api/v1/github/commits/:id/link
+ * @desc    Link commit to task
+ * @access  Private (Project members)
+ */
+router.patch(
+  '/commits/:id/link',
+  authenticate,
+  validateBody(linkCommitToTaskSchema),
+  githubController.linkCommitToTask
+);
 
 export default router;

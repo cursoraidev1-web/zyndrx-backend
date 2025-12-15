@@ -13,6 +13,7 @@
 5. [Documents](#documents)
 6. [Notifications](#notifications)
 7. [Analytics](#analytics)
+8. [GitHub Integration](#github-integration)
 
 ---
 
@@ -578,6 +579,93 @@
 
 ---
 
+## 🔗 GITHUB INTEGRATION
+
+### 1. Create GitHub Integration
+**POST** `/github/integrations`
+
+**Headers:** `Authorization: Bearer {{token}}`
+
+**Body:**
+```json
+{
+  "projectId": "project-uuid",
+  "repositoryUrl": "https://github.com/username/repo-name",
+  "accessToken": "ghp_yourGitHubToken",
+  "webhookSecret": "optional-secret"
+}
+```
+
+---
+
+### 2. Get Project Integration
+**GET** `/github/integrations/:projectId`
+
+**Headers:** `Authorization: Bearer {{token}}`
+
+---
+
+### 3. Update Integration
+**PUT** `/github/integrations/:id`
+
+**Headers:** `Authorization: Bearer {{token}}`
+
+**Body:**
+```json
+{
+  "repositoryUrl": "https://github.com/username/new-repo",
+  "isActive": false
+}
+```
+
+---
+
+### 4. Delete Integration
+**DELETE** `/github/integrations/:id`
+
+**Headers:** `Authorization: Bearer {{token}}`
+
+---
+
+### 5. Get Commits
+**GET** `/github/commits?projectId=xxx&taskId=yyy&page=1&limit=20`
+
+**Headers:** `Authorization: Bearer {{token}}`
+
+**Query Params:**
+- `projectId` (optional)
+- `taskId` (optional)
+- `page`, `limit`
+
+---
+
+### 6. Link Commit to Task
+**PATCH** `/github/commits/:id/link`
+
+**Headers:** `Authorization: Bearer {{token}}`
+
+**Body:**
+```json
+{
+  "taskId": "task-uuid"
+}
+```
+
+---
+
+### 7. GitHub Webhook (Public Endpoint)
+**POST** `/github/webhook/:projectId`
+
+**Headers:**
+```
+X-Hub-Signature-256: sha256=signature
+Content-Type: application/json
+```
+
+**Note:** This is called automatically by GitHub. Configure in your repo settings.
+
+---
+
 ## 🧪 COMPLETE WORKFLOW TEST
 
 ```
@@ -588,11 +676,13 @@
 5. POST /prds (create PRD) → Save prdId
 6. PATCH /prds/:id/status (submit for review)
 7. PATCH /prds/:id/status (approve)
-8. POST /tasks (create task)
+8. POST /tasks (create task) → Save taskId
 9. PUT /tasks/:id (update status to in_progress)
 10. POST /documents (upload document)
-11. GET /analytics/projects/:projectId (view stats)
-12. GET /analytics/me (view user dashboard)
+11. POST /github/integrations (setup GitHub)
+12. GET /github/commits (view commits)
+13. GET /analytics/projects/:projectId (view stats)
+14. GET /analytics/me (view user dashboard)
 ```
 
 ---
