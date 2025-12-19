@@ -30,3 +30,23 @@ export const updateProfileSchema = z.object({
     avatarUrl: z.string().url().optional(),
   }),
 });
+
+export const googleLoginSchema = z.object({
+  body: z.object({
+    accessToken: z.string().min(1, 'Access token is required'),
+  }),
+});
+// Verify the code to Enable 2FA
+export const verify2FASchema = z.object({
+  body: z.object({
+    token: z.string().length(6, 'Code must be 6 digits'),
+  }),
+});
+
+// Login step 2 (Verification)
+export const login2FASchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+    token: z.string().length(6, 'Code must be 6 digits'),
+  }),
+});

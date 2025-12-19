@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { AppError } from './error.middleware';
+import { ResponseHandler } from '../utils/response';
 import { UserRole } from '../types/database.types';
 
 // Extend Express Request type to include user (already done in types/express.d.ts)
@@ -48,4 +49,18 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     }
     next(error);
   }
+};
+
+export const authorize = (allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return ResponseHandler.unauthorized(res);
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return ResponseHandler.forbidden(res, `Access denied. Requires role: ${allowedRoles.join(' or ')}`);
+    }
+
+    next();
+  };
 };
