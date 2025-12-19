@@ -6,8 +6,8 @@ const db = supabase as SupabaseClient<Database>;
 
 export class ProjectService {
   
-  // Create a new Project
-  static async createProject(data: { name: string; description?: string; owner_id: string; start_date?: string; end_date?: string }) {
+  // FIX: Explicitly type 'data' as 'any' so it accepts 'team_name' without complaining
+  static async createProject(data: any) {
     const { data: project, error } = await (db.from('projects') as any)
       .insert({
         ...data,
@@ -20,26 +20,29 @@ export class ProjectService {
     return project;
   }
 
-  // Get all projects for a specific user (Owner or Member)
-  static async getUserProjects(userId: string) {
-    // This query fetches projects where the user is the OWNER
-    // TODO: Later, expand this to include projects where they are just a 'member'
-    const { data, error } = await db
-      .from('projects')
-      .select('*')
-      .eq('owner_id', userId)
-      .order('created_at', { ascending: false });
+  // Fetch with Filters (Team, Status)
+  static async getUserProjects(userId: string, filters?: { team_name?: string; status?: string }) {
+    let query = db.from('projects').select('*').eq('owner_id', userId);
 
+    // Apply UI Filters
+    if (filters?.team_name) {
+      query = query.eq('team_name', filters.team_name);
+    }
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    
     if (error) throw new Error(error.message);
     return data;
   }
 
-  // Get single project details
-  static async getProjectById(id: string) {
+  static async getProjectById(projectId: string) {
     const { data, error } = await db
       .from('projects')
-      .select('*, users!projects_owner_id_fkey(full_name, email)')
-      .eq('id', id)
+      .select('*')
+      .eq('id', projectId)
       .single();
 
     if (error) throw new Error(error.message);

@@ -8,6 +8,7 @@ export const createTaskSchema = z.object({
     description: z.string().optional(),
     priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
     assigned_to: z.string().uuid().optional(),
+    tags: z.array(z.string()).optional(),
   }),
 });
 

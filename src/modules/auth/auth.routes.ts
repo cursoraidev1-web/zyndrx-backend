@@ -7,8 +7,10 @@ import {
   loginSchema,
   googleLoginSchema,
   updateProfileSchema,
-  verify2FASchema, // <--- ADDED
-  login2FASchema,  // <--- ADDED
+  verify2FASchema,
+  login2FASchema,
+  forgotPasswordSchema, 
+  resetPasswordSchema   
 } from './auth.validation';
 
 const router = Router();
@@ -34,6 +36,27 @@ router.post('/login', validate(loginSchema), authController.login);
  * @access  Public
  */
 router.post('/google', validate(googleLoginSchema), authController.googleLogin);
+
+/**
+ * @route   POST /api/v1/auth/github
+ * @desc    Login or Register with GitHub
+ * @access  Public
+ */
+router.post('/github', authController.githubLogin);
+
+/**
+ * @route   POST /api/v1/auth/forgot-password
+ * @desc    Send password reset email
+ * @access  Public
+ */
+router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
+
+/**
+ * @route   POST /api/v1/auth/reset-password
+ * @desc    Reset password using token from email
+ * @access  Public
+ */
+router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
 
 /**
  * @route   GET /api/v1/auth/me

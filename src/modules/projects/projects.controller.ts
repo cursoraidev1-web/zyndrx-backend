@@ -6,8 +6,15 @@ export const createProject = async (req: Request, res: Response, next: NextFunct
   try {
     const userId = req.user!.id; // From auth middleware
     
+    // Explicitly destructure to ensure we capture the new 'team_name' from the UI
+    const { name, description, start_date, end_date, team_name } = req.body;
+    
     const project = await ProjectService.createProject({
-      ...req.body,
+      name,
+      description,
+      start_date,
+      end_date,
+      team_name: team_name || 'Engineering', // Default to Engineering if missing
       owner_id: userId
     });
 
@@ -20,7 +27,14 @@ export const createProject = async (req: Request, res: Response, next: NextFunct
 export const getMyProjects = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const projects = await ProjectService.getUserProjects(userId);
+    
+    // Support filtering from the UI (e.g., ?team_name=Design&status=active)
+    const filters = {
+      team_name: req.query.team_name as string,
+      status: req.query.status as string
+    };
+
+    const projects = await ProjectService.getUserProjects(userId, filters);
     return ResponseHandler.success(res, projects, 'Projects fetched successfully');
   } catch (error) {
     next(error);

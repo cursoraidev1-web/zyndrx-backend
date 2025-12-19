@@ -50,3 +50,15 @@ export const login2FASchema = z.object({
     token: z.string().length(6, 'Code must be 6 digits'),
   }),
 });
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+  }),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    password: z.string().min(8),
+    accessToken: z.string().min(1), // Supabase sends this via email link
+  }),
+});

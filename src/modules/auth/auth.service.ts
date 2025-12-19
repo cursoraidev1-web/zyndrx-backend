@@ -321,4 +321,34 @@ export class AuthService {
     const secret = String(config.jwt.secret);
     return jwt.sign(payload, secret, { expiresIn: config.jwt.expiresIn as any });
   }
+  async loginWithGitHub(accessToken: string): Promise<AuthResponse | TwoFactorResponse> {
+    // Exact same logic as Google, just verifying a GitHub token
+    // Supabase handles the provider difference internally if you use getUser()
+    return this.loginWithGoogle(accessToken); 
+  }
+
+  // NEW: Forgot Password (Sends email)
+  async forgotPassword(email: string) {
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://zyndrx.netlify.app/reset-password', // Point to your Frontend
+    });
+    if (error) throw new AppError(error.message, 400);
+    return { success: true };
+  }
+
+  // NEW: Reset Password (User clicks email link -> Frontend -> Here)
+  async resetPassword(password: string, accessToken: string) {
+    // verify the user using the token
+    const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
+    if (error || !data.user) throw new AppError('Invalid or expired token', 401);
+
+    // Update password
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      data.user.id,
+      { password }
+    );
+    
+    if (updateError) throw new AppError('Failed to reset password', 500);
+    return { success: true };
+  }
 }

@@ -64,4 +64,24 @@ export class GithubService {
     
     // Future: Insert into 'github_commits' table here
   }
+  static async handleWebHook(payload: any, eventType: string) {
+    if (eventType === 'push') {
+      await this.handlePushEvent(payload);
+    } 
+    else if (eventType === 'pull_request') {
+      await this.handlePullRequestEvent(payload);
+    }
+  }
+
+  private static async handlePullRequestEvent(payload: any) {
+    const pr = payload.pull_request;
+    // Save to DB
+    await (db.from('github_pull_requests') as any).upsert({
+      pr_number: pr.number,
+      title: pr.title,
+      status: pr.state, // 'open' or 'closed'
+      author: pr.user.login,
+      // project_id: ... (logic to link repo to project)
+    }, { onConflict: 'pr_number' });
+  }
 }
