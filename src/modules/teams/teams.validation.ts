@@ -1,15 +1,17 @@
 import { z } from 'zod';
 
-export const inviteMemberSchema = z.object({
+export const inviteUserSchema = z.object({
   body: z.object({
+    // Validation for Project ID (UUID format)
+    projectId: z.string().uuid('Invalid Project ID format'),
     email: z.string().email('Invalid email address'),
-    // These match your Postgres ENUM 'user_role' exactly
-    role: z.enum(['admin', 'product_manager', 'developer', 'qa', 'devops', 'designer']).default('developer')
+    // Adjusted to match your "roles" usage
+    role: z.enum(['admin', 'product_manager', 'developer', 'qa', 'devops', 'designer', 'member', 'viewer']).default('developer'),
   }),
 });
 
 export const acceptInviteSchema = z.object({
   body: z.object({
-    token: z.string().min(1, 'Invite token is required')
+    token: z.string().min(1, 'Invite token is required'),
   }),
 });
