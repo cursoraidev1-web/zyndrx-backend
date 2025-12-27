@@ -99,14 +99,11 @@ export class AuthService {
          user = manualUser;
       }
 
-      // Create company for the user
+      // Create company for the user (subscription is created automatically in createCompany)
       const company = await CompanyService.createCompany({
         name: data.companyName,
         userId: user.id,
       });
-
-      // Create default subscription (free plan with 30-day trial)
-      await SubscriptionService.createDefaultSubscription(company.id);
 
       // Get user's companies
       const companies = await CompanyService.getUserCompanies(user.id);

@@ -42,6 +42,13 @@ export class SubscriptionService {
    */
   static async createDefaultSubscription(companyId: string) {
     try {
+      // Check if subscription already exists (to avoid UNIQUE constraint violation)
+      const existing = await this.getCompanySubscription(companyId);
+      if (existing) {
+        logger.info('Subscription already exists for company', { companyId });
+        return existing;
+      }
+
       const trialStartDate = new Date();
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30); // 30-day trial
@@ -58,14 +65,44 @@ export class SubscriptionService {
         .single();
 
       if (error) {
-        logger.error('Failed to create subscription', { error });
-        throw new AppError('Failed to create subscription', 500);
+        // Log full error details for debugging
+        logger.error('Failed to create subscription', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          companyId
+        });
+        
+        // Handle UNIQUE constraint violation gracefully
+        if (error.code === '23505') { // Unique violation
+          logger.warn('Subscription already exists (unique constraint)', { companyId });
+          // Try to fetch existing subscription
+          const existing = await this.getCompanySubscription(companyId);
+          if (existing) return existing;
+        }
+        
+        throw new AppError(
+          `Failed to create subscription: ${error.message || error.code || 'Unknown error'}`,
+          500
+        );
       }
 
       return subscription;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppError('Failed to create subscription', 500);
+      
+      logger.error('Subscription creation error', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        companyId
+      });
+      
+      throw new AppError(
+        error instanceof Error ? error.message : 'Failed to create subscription',
+        500
+      );
     }
   }
 
