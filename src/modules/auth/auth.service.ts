@@ -60,15 +60,24 @@ export class AuthService {
   // 1. REGISTER NEW USER
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
+      logger.info('Starting user registration', { email: data.email, companyName: data.companyName });
+
       // Check Supabase connection
       const { data: healthCheck, error: healthError } = await supabaseAdmin.from('users').select('count').limit(1);
-      if (healthError && healthError.code !== 'PGRST116') throw new AppError('Database connection failed', 500);
+      if (healthError && healthError.code !== 'PGRST116') {
+        logger.error('Database connection check failed', { error: healthError });
+        throw new AppError('Database connection failed', 500);
+      }
 
       // Check existing user
       const { data: existingUser } = await supabaseAdmin.from('users').select('id').eq('email', data.email).single();
-      if (existingUser) throw new AppError('User with this email already exists', 409);
+      if (existingUser) {
+        logger.warn('Registration attempted with existing email', { email: data.email });
+        throw new AppError('User with this email already exists', 409);
+      }
 
       // Create Auth User
+      logger.info('Creating auth user', { email: data.email });
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
@@ -76,64 +85,165 @@ export class AuthService {
         user_metadata: { full_name: data.fullName, role: data.role || 'developer' },
       });
 
-      if (authError || !authData.user) throw new AppError(`Failed to create user: ${authError?.message}`, 500);
+      if (authError || !authData.user) {
+        logger.error('Failed to create auth user', { 
+          error: authError, 
+          errorMessage: authError?.message,
+          errorCode: authError?.code,
+          email: data.email 
+        });
+        throw new AppError(`Failed to create user: ${authError?.message}`, 500);
+      }
 
-      // Sync Profile (Retry logic omitted for brevity, but recommended in prod)
+      logger.info('Auth user created successfully', { userId: authData.user.id, email: data.email });
+
+      // Sync Profile - Wait for trigger to create user profile
       let user = null;
-      const { data: createdUser } = await supabaseAdmin
+      logger.info('Checking for user profile from trigger', { userId: authData.user.id });
+      const { data: createdUser, error: profileError } = await supabaseAdmin
         .from('users')
         .select('id, email, full_name, role, avatar_url')
         .eq('id', authData.user.id)
         .single() as any;
       
+      if (profileError && profileError.code !== 'PGRST116') {
+        logger.warn('Error checking for user profile', { error: profileError, userId: authData.user.id });
+      }
+      
       user = createdUser;
 
-      // Fallback manual creation
+      // Fallback manual creation if trigger didn't fire
       if (!user) {
-         const { data: manualUser } = await (supabaseAdmin.from('users') as any).insert({
-           id: authData.user.id,
-           email: data.email,
-           full_name: data.fullName,
-           role: data.role || 'developer'
-         }).select().single();
-         user = manualUser;
+        logger.info('Trigger did not create user profile, creating manually', { userId: authData.user.id });
+        const { data: manualUser, error: manualError } = await (supabaseAdmin.from('users') as any).insert({
+          id: authData.user.id,
+          email: data.email,
+          full_name: data.fullName,
+          role: data.role || 'developer'
+        }).select().single();
+        
+        if (manualError || !manualUser) {
+          logger.error('Failed to create user profile manually', {
+            error: manualError,
+            errorMessage: manualError?.message,
+            errorCode: manualError?.code,
+            errorDetails: manualError?.details,
+            errorHint: manualError?.hint,
+            userId: authData.user.id,
+            email: data.email
+          });
+          // Clean up auth user if profile creation fails
+          try {
+            await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+            logger.info('Cleaned up auth user after profile creation failure', { userId: authData.user.id });
+          } catch (cleanupError) {
+            logger.error('Failed to clean up auth user', { error: cleanupError, userId: authData.user.id });
+          }
+          throw new AppError(`Failed to create user profile: ${manualError?.message || 'Unknown error'}`, 500);
+        }
+        
+        user = manualUser;
+        logger.info('User profile created manually', { userId: user.id });
+      } else {
+        logger.info('User profile found from trigger', { userId: user.id });
+      }
+
+      // Validate user exists before proceeding
+      if (!user || !user.id) {
+        logger.error('User validation failed - user is null or missing id', { user, userId: authData.user.id });
+        throw new AppError('User profile creation failed - user data is invalid', 500);
       }
 
       // Create company for the user (subscription is created automatically in createCompany)
+      logger.info('Creating company for user', { userId: user.id, companyName: data.companyName });
       const company = await CompanyService.createCompany({
         name: data.companyName,
         userId: user.id,
       });
 
+      if (!company || !company.id) {
+        logger.error('Company validation failed - company is null or missing id', { company, userId: user.id });
+        throw new AppError('Company creation failed - company data is invalid', 500);
+      }
+
+      logger.info('Company created successfully', { companyId: company.id, userId: user.id });
+
       // Get user's companies
+      logger.info('Fetching user companies', { userId: user.id });
       const companies = await CompanyService.getUserCompanies(user.id);
 
+      if (!Array.isArray(companies)) {
+        logger.error('getUserCompanies returned non-array', { companies, userId: user.id });
+        throw new AppError('Failed to retrieve user companies', 500);
+      }
+
+      logger.info('User companies retrieved', { userId: user.id, companyCount: companies.length });
+
+      // Generate token
+      logger.info('Generating JWT token', { userId: user.id, companyId: company.id });
       const token = this.generateToken(user.id, user.email, user.role, company.id);
 
-      return {
+      // Build response with defensive mapping
+      const response: AuthResponse = {
         user: {
           id: user.id,
           email: user.email,
           fullName: user.full_name,
           role: user.role,
-          avatarUrl: user.avatar_url,
+          avatarUrl: user.avatar_url || null,
         },
         token,
         companyId: company.id,
-        companies: companies.map((c) => ({
-          id: c.id,
-          name: c.name,
-          role: c.role,
-        })),
+        companies: companies.length > 0 
+          ? companies.map((c) => {
+              if (!c || !c.id || !c.name) {
+                logger.warn('Invalid company data in mapping', { company: c, userId: user.id });
+                return null;
+              }
+              return {
+                id: c.id,
+                name: c.name,
+                role: c.role || 'developer',
+              };
+            }).filter((c): c is { id: string; name: string; role: string } => c !== null)
+          : [],
         currentCompany: {
           id: company.id,
           name: company.name,
         },
       };
+
+      logger.info('Registration completed successfully', { 
+        userId: user.id, 
+        email: user.email, 
+        companyId: company.id 
+      });
+
+      return response;
     } catch (error) {
-      if (error instanceof AppError) throw error;
-      logger.error('Registration error', { error });
-      throw new AppError('Registration failed', 500);
+      if (error instanceof AppError) {
+        logger.error('Registration failed with AppError', {
+          message: error.message,
+          statusCode: error.statusCode,
+          email: data.email,
+          stack: error.stack
+        });
+        throw error;
+      }
+      
+      logger.error('Registration error - unexpected error type', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        email: data.email,
+        companyName: data.companyName
+      });
+      
+      throw new AppError(
+        error instanceof Error ? error.message : 'Registration failed',
+        500
+      );
     }
   }
 

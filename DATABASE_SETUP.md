@@ -171,3 +171,4 @@ After migrations are complete:
 - `scripts/migrate.js` - Migration script
 - `scripts/migrate-instructions.md` - Detailed migration instructions
 
+
