@@ -38,7 +38,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "db:migrate": "node scripts/migrate-simple.js",
+    "db:check": "node scripts/migrate-simple.js"
   },
   "engines": {
     "node": ">=20.0.0",

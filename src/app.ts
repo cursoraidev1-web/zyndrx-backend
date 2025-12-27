@@ -73,7 +73,7 @@ class App {
     const apiPrefix = `/api/${config.server.apiVersion}`;
 
     // Health check endpoint
-    this.app.get('/health', (req, res) => {
+    this.app.get('/health', (req: express.Request, res: express.Response) => {
       res.status(200).json({
         success: true,
         message: 'Zyndrx API is running',
@@ -97,7 +97,7 @@ class App {
     this.app.use(`${apiPrefix}/plans`, plansRoutes); // Plans endpoint (public)
 
     // Welcome route (API Directory)
-    this.app.get('/', (req, res) => {
+    this.app.get('/', (req: express.Request, res: express.Response) => {
       res.status(200).json({
         success: true,
         message: 'Welcome to Zyndrx API',
