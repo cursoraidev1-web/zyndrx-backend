@@ -28,17 +28,81 @@ export class CompanyService {
    */
   static async createCompany(data: CreateCompanyData) {
     try {
-      // Create company
-      const { data: company, error: companyError } = await (db.from('companies') as any)
-        .insert({
-          name: data.name,
-          slug: this.generateSlug(data.name),
-        })
-        .select()
-        .single();
+      // Generate unique slug
+      let slug = await this.generateUniqueSlug(data.name);
+      let company = null;
 
-      if (companyError || !company) {
-        throw new AppError(`Failed to create company: ${companyError?.message}`, 500);
+      // Create company with retry logic for duplicate slugs
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        const { data: companyData, error: companyError } = await (db.from('companies') as any)
+          .insert({
+            name: data.name,
+            slug: slug,
+          })
+          .select()
+          .single();
+
+        if (companyError) {
+          // Handle duplicate slug error specifically
+          if (companyError.code === '23505' && companyError.message?.includes('slug')) {
+            attempts++;
+            if (attempts >= maxAttempts) {
+              logger.error('Failed to create company after multiple slug attempts', {
+                companyName: data.name,
+                attempts
+              });
+              throw new AppError(
+                'Unable to create company. A company with a similar name may already exist. Please try a different company name.',
+                409
+              );
+            }
+            logger.warn('Duplicate slug detected, generating new unique slug', {
+              originalSlug: slug,
+              companyName: data.name,
+              attempt: attempts
+            });
+            // Generate a new unique slug and retry
+            slug = await this.generateUniqueSlug(data.name, true);
+            continue;
+          } else {
+            // Provide user-friendly error messages
+            let userMessage = 'Failed to create company. Please try again.';
+            
+            if (companyError.code === '23505') {
+              // Generic unique constraint violation
+              userMessage = 'A company with this name or identifier already exists. Please choose a different name.';
+            } else if (companyError.message?.includes('null') || companyError.message?.includes('NOT NULL')) {
+              userMessage = 'Company name is required. Please provide a valid company name.';
+            } else if (companyError.message) {
+              // Log technical error but show user-friendly message
+              logger.error('Company creation database error', {
+                error: companyError,
+                code: companyError.code,
+                message: companyError.message,
+                companyName: data.name
+              });
+            }
+            
+            throw new AppError(userMessage, 500);
+          }
+        }
+
+        if (!companyData) {
+          throw new AppError('Failed to create company. Please try again.', 500);
+        }
+
+        company = companyData;
+        break; // Success, exit loop
+      }
+
+      if (!company) {
+        throw new AppError(
+          'Unable to create company after multiple attempts. A company with a similar name may already exist. Please try a different company name.',
+          500
+        );
       }
 
       // Add user as admin
@@ -53,7 +117,15 @@ export class CompanyService {
       if (memberError) {
         // Rollback: delete company if member creation fails
         await (db.from('companies') as any).delete().eq('id', company.id);
-        throw new AppError(`Failed to add user to company: ${memberError.message}`, 500);
+        logger.error('Failed to add user to company, rolling back company creation', {
+          error: memberError,
+          companyId: company.id,
+          userId: data.userId
+        });
+        throw new AppError(
+          'Company was created but we couldn\'t add you as a member. Please contact support for assistance.',
+          500
+        );
       }
 
       // Create default subscription (free plan with 30-day trial)
@@ -70,8 +142,16 @@ export class CompanyService {
       return company;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error('Company creation error', { error });
-      throw new AppError('Failed to create company', 500);
+      logger.error('Company creation error', { 
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        companyName: data.name,
+        userId: data.userId
+      });
+      throw new AppError(
+        'An unexpected error occurred while creating your company. Please try again or contact support if the problem persists.',
+        500
+      );
     }
   }
 
@@ -420,6 +500,56 @@ export class CompanyService {
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
       .replace(/^-+|-+$/g, '');
+  }
+
+  /**
+   * Generate a unique slug by checking for existing slugs and appending a suffix if needed
+   */
+  private static async generateUniqueSlug(name: string, forceUnique: boolean = false): Promise<string> {
+    const baseSlug = this.generateSlug(name);
+    
+    // If not forcing uniqueness, check if base slug exists
+    if (!forceUnique) {
+      const { data: existing } = await db
+        .from('companies')
+        .select('id')
+        .eq('slug', baseSlug)
+        .single();
+      
+      // If slug doesn't exist, return it
+      if (!existing) {
+        return baseSlug;
+      }
+    }
+    
+    // Slug exists or forceUnique is true, append a random suffix
+    const randomSuffix = Math.random().toString(36).substring(2, 8); // 6 random chars
+    let uniqueSlug = `${baseSlug}-${randomSuffix}`;
+    
+    // Ensure the new slug is also unique (retry if needed)
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+      const { data: existing } = await db
+        .from('companies')
+        .select('id')
+        .eq('slug', uniqueSlug)
+        .single();
+      
+      if (!existing) {
+        return uniqueSlug;
+      }
+      
+      // Generate new suffix and try again
+      const newSuffix = Math.random().toString(36).substring(2, 8);
+      uniqueSlug = `${baseSlug}-${newSuffix}`;
+      attempts++;
+    }
+    
+    // Fallback: use timestamp if all random attempts fail
+    const timestampSuffix = Date.now().toString(36);
+    return `${baseSlug}-${timestampSuffix}`;
   }
 }
 
