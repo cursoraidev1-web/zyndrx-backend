@@ -11,13 +11,10 @@ export class TaskService {
   
   static async getTasksByProject(projectId: string) {
     try {
-      const { data, error } = await db
+      // First, get all tasks
+      const { data: tasks, error } = await db
         .from('tasks')
-        .select(`
-          *,
-          assignee:users!tasks_assigned_to_fkey(id, full_name, avatar_url),
-          reporter:users!tasks_created_by_fkey(full_name)
-        `)
+        .select('*')
         .eq('project_id', projectId)
         .order('created_at', { ascending: true });
 
@@ -26,7 +23,40 @@ export class TaskService {
         throw new AppError(`Failed to fetch tasks: ${error.message}`, 500);
       }
 
-      return data || [];
+      if (!tasks || tasks.length === 0) {
+        return [];
+      }
+
+      // Get unique user IDs for assignees and creators
+      const userIds = new Set<string>();
+      tasks.forEach((task: any) => {
+        if (task.assigned_to) userIds.add(task.assigned_to);
+        if (task.created_by) userIds.add(task.created_by);
+      });
+
+      // Fetch user data if needed
+      let usersMap: Record<string, any> = {};
+      if (userIds.size > 0) {
+        const { data: users, error: usersError } = await db
+          .from('users')
+          .select('id, full_name, avatar_url')
+          .in('id', Array.from(userIds));
+
+        if (!usersError && users) {
+          users.forEach((user: any) => {
+            usersMap[user.id] = user;
+          });
+        }
+      }
+
+      // Enrich tasks with user data
+      const enrichedTasks = tasks.map((task: any) => ({
+        ...task,
+        assignee: task.assigned_to ? usersMap[task.assigned_to] || null : null,
+        reporter: task.created_by ? { full_name: usersMap[task.created_by]?.full_name || null } : null,
+      }));
+
+      return enrichedTasks;
     } catch (error) {
       if (error instanceof AppError) throw error;
       logger.error('Get tasks by project error', { error, projectId });
@@ -68,7 +98,7 @@ export class TaskService {
           company_id: companyId, // Ensure company_id is set
           status: 'todo'
         })
-        .select()
+        .select('*')
         .single();
 
       if (error) {
@@ -93,10 +123,7 @@ export class TaskService {
       const { data: task, error } = await (db.from('tasks') as any)
         .update(updates)
         .eq('id', taskId)
-        .select(`
-          *,
-          assignee:users!tasks_assigned_to_fkey(id, full_name, avatar_url)
-        `)
+        .select('*')
         .single();
 
       if (error) {
@@ -109,6 +136,20 @@ export class TaskService {
 
       if (!task) {
         throw new AppError('Task not found', 404);
+      }
+
+      // Fetch assignee data if assigned_to exists
+      if (task.assigned_to) {
+        const { data: assignee } = await db
+          .from('users')
+          .select('id, full_name, avatar_url')
+          .eq('id', task.assigned_to)
+          .single();
+
+        return {
+          ...task,
+          assignee: assignee || null,
+        };
       }
 
       return task;
