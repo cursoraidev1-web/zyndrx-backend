@@ -73,7 +73,8 @@ export class DocumentService {
         throw new AppError('Subscription not found', 404);
       }
 
-      const planType = subscription.planType === 'standard' ? 'pro' : subscription.planType;
+      // Map plan types to file size limits
+      const planType = subscription.planType; // 'free' | 'pro' | 'enterprise'
       const maxFileSize = MAX_FILE_SIZES[planType as keyof typeof MAX_FILE_SIZES] || MAX_FILE_SIZES.free;
 
       // Check file size
@@ -232,7 +233,7 @@ export class DocumentService {
   /**
    * Get document by ID
    */
-  static async getDocumentById(documentId: string, companyId: string) {
+  static async getDocumentById(documentId: string, companyId: string): Promise<any> {
     try {
       const { data, error } = await db
         .from('documents')
@@ -245,7 +246,7 @@ export class DocumentService {
         throw new AppError('Document not found or access denied', 404);
       }
 
-      return data;
+      return data as any;
     } catch (error) {
       if (error instanceof AppError) throw error;
       logger.error('Get document error', { error, documentId });
