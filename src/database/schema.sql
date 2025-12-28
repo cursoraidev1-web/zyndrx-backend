@@ -34,7 +34,8 @@ CREATE TABLE projects (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   status TEXT NOT NULL DEFAULT 'active',
   start_date DATE,
-  end_date DATE
+  end_date DATE,
+  team_name TEXT DEFAULT 'Engineering'
 );
  
 -- Project members (many-to-many relationship)

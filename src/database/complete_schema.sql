@@ -96,7 +96,8 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   status TEXT NOT NULL DEFAULT 'active',
   start_date DATE,
-  end_date DATE
+  end_date DATE,
+  team_name TEXT DEFAULT 'Engineering'
   -- company_id will be added in migration section
 );
 
@@ -312,6 +313,7 @@ CREATE TABLE IF NOT EXISTS plan_limits (
 -- ============================================================================
 
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS team_name TEXT DEFAULT 'Engineering';
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
@@ -343,6 +345,7 @@ CREATE INDEX IF NOT EXISTS idx_github_commits_task ON github_commits(task_id);
 CREATE INDEX IF NOT EXISTS idx_user_companies_user_id ON user_companies(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_companies_company_id ON user_companies(company_id);
 CREATE INDEX IF NOT EXISTS idx_projects_company_id ON projects(company_id);
+CREATE INDEX IF NOT EXISTS idx_projects_team_name ON projects(team_name);
 CREATE INDEX IF NOT EXISTS idx_tasks_company_id ON tasks(company_id);
 CREATE INDEX IF NOT EXISTS idx_documents_company_id ON documents(company_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_company_id ON notifications(company_id);
