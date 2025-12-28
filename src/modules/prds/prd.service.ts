@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import supabase from '../../config/supabase';
 import { Database, Json } from '../../types/database.types';
+import logger from '../../utils/logger';
 
 // We keep the typed client for reads, but we will bypass it for writes where TS struggles
 const db = supabase as SupabaseClient<Database>;
@@ -84,7 +85,17 @@ export class PrdService {
       const { error } = await (db.from('tasks') as any).insert(tasksToInsert);
       
       if (error) {
-        console.error('Failed to auto-generate tasks:', error.message);
+        logger.error('Failed to auto-generate tasks from PRD', {
+          prdId: prd.id,
+          error: error.message,
+          userId
+        });
+      } else {
+        logger.info('Auto-generated tasks from PRD', {
+          prdId: prd.id,
+          taskCount: tasksToInsert.length,
+          userId
+        });
       }
     }
   }

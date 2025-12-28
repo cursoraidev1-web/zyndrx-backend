@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import supabase from '../../config/supabase';
 import { Database } from '../../types/database.types';
+import logger from '../../utils/logger';
 
 const db = supabase as SupabaseClient<Database>;
 

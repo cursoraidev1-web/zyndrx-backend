@@ -53,3 +53,5 @@ echo -e "${BLUE}   Go to: ${SUPABASE_URL}/project/_/sql${NC}\n"
 exit 0
 
 
+
+

@@ -582,40 +582,47 @@ CREATE POLICY "Company admins can update companies"
     )
   );
 
--- Users can view their own company memberships
+-- Create a SECURITY DEFINER function to check if user is admin (bypasses RLS)
+CREATE OR REPLACE FUNCTION public.is_company_admin(company_id_param UUID, user_id_param UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM user_companies
+    WHERE user_companies.company_id = company_id_param
+    AND user_companies.user_id = user_id_param
+    AND user_companies.role = 'admin'
+  );
+END;
+$$;
+
+-- Users can view their own company memberships (simplified - no recursion)
 CREATE POLICY "Users can view their company memberships" 
   ON user_companies FOR SELECT
-  USING (user_id = auth.uid() OR company_id IN (
-    SELECT company_id FROM user_companies WHERE user_id = auth.uid()
-  ));
+  USING (user_id = auth.uid());
 
 -- Users can be added to companies (via invitation)
 CREATE POLICY "Users can be added to companies" 
   ON user_companies FOR INSERT
   WITH CHECK (true);
 
--- Company admins can update memberships
+-- Company admins can update memberships (using function to avoid recursion)
 CREATE POLICY "Company admins can update memberships" 
   ON user_companies FOR UPDATE
   USING (
-    EXISTS (
-      SELECT 1 FROM user_companies uc
-      WHERE uc.company_id = user_companies.company_id
-      AND uc.user_id = auth.uid()
-      AND uc.role = 'admin'
-    )
+    user_id = auth.uid() OR  -- Users can update their own membership
+    public.is_company_admin(company_id, auth.uid())  -- Or if they're an admin
   );
 
--- Company admins can remove members
+-- Company admins can remove members (using function to avoid recursion)
 CREATE POLICY "Company admins can remove members" 
   ON user_companies FOR DELETE
   USING (
-    EXISTS (
-      SELECT 1 FROM user_companies uc
-      WHERE uc.company_id = user_companies.company_id
-      AND uc.user_id = auth.uid()
-      AND uc.role = 'admin'
-    )
+    user_id = auth.uid() OR  -- Users can remove themselves
+    public.is_company_admin(company_id, auth.uid())  -- Or if they're an admin
   );
 
 -- Users can view subscriptions for companies they belong to

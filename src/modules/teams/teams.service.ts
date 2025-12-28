@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import supabase from '../../config/supabase';
 import { Database } from '../../types/database.types';
 import { PRICING_LIMITS, PlanType } from '../../config/pricing';
+import logger from '../../utils/logger';
 
 const db = supabase as SupabaseClient<Database>;
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -77,13 +78,12 @@ export class TeamService {
             <p>This link expires in 7 days.</p>
           `
         });
-        console.log(`✅ Email sent to ${email}`);
+        logger.info('Email sent successfully', { email });
       } catch (emailError) {
-        console.error('Failed to send email:', emailError);
+        logger.error('Failed to send email', { email, error: emailError });
       }
     } else {
-      console.log(`\n📧 [EMAIL MOCK] To: ${email}`);
-      console.log(`Link: ${inviteLink}\n`);
+      logger.info('Email mock (no API key)', { email, inviteLink });
     }
 
     return { invite, link: inviteLink };

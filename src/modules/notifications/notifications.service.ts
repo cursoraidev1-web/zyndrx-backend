@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import supabase from '../../config/supabase';
 import { Database } from '../../types/database.types';
+import logger from '../../utils/logger';
 
 const db = supabase as SupabaseClient<Database>;
 
@@ -17,7 +18,16 @@ export class NotificationService {
       is_read: false
     });
     
-    if (error) console.error('Failed to create notification:', error.message);
+    if (error) {
+      logger.error('Failed to create notification', {
+        userId,
+        type,
+        title,
+        error: error.message
+      });
+    } else {
+      logger.debug('Notification created', { userId, type, title });
+    }
   }
 
   static async getMyNotifications(userId: string) {
