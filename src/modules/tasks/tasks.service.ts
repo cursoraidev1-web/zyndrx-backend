@@ -159,4 +159,125 @@ export class TaskService {
       throw new AppError('Failed to update task', 500);
     }
   }
+
+  static async getTaskById(taskId: string) {
+    try {
+      const { data: task, error } = await db
+        .from('tasks')
+        .select('*')
+        .eq('id', taskId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new AppError('Task not found', 404);
+        }
+        logger.error('Failed to fetch task', { error, taskId });
+        throw new AppError(`Failed to fetch task: ${error.message}`, 500);
+      }
+
+      if (!task) {
+        throw new AppError('Task not found', 404);
+      }
+
+      // Fetch assignee and creator data
+      const taskObj = task as any;
+      const userIds = new Set<string>();
+      if (taskObj.assigned_to) userIds.add(taskObj.assigned_to);
+      if (taskObj.created_by) userIds.add(taskObj.created_by);
+
+      let usersMap: Record<string, any> = {};
+      if (userIds.size > 0) {
+        const { data: users } = await db
+          .from('users')
+          .select('id, full_name, avatar_url, email')
+          .in('id', Array.from(userIds));
+
+        if (users) {
+          users.forEach((user: any) => {
+            usersMap[user.id] = user;
+          });
+        }
+      }
+
+      return {
+        ...taskObj,
+        assignee: taskObj.assigned_to ? usersMap[taskObj.assigned_to] || null : null,
+        reporter: taskObj.created_by ? usersMap[taskObj.created_by] || null : null,
+      } as any;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Get task by ID error', { error, taskId });
+      throw new AppError('Failed to fetch task', 500);
+    }
+  }
+
+  static async deleteTask(taskId: string) {
+    try {
+      const { error } = await (db.from('tasks') as any)
+        .delete()
+        .eq('id', taskId);
+
+      if (error) {
+        logger.error('Failed to delete task', { error: error.message, taskId });
+        throw new AppError(`Failed to delete task: ${error.message}`, 500);
+      }
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Delete task error', { error, taskId });
+      throw new AppError('Failed to delete task', 500);
+    }
+  }
+
+  static async getAllTasks(companyId: string, userId?: string) {
+    try {
+      let query = db
+        .from('tasks')
+        .select('*')
+        .eq('company_id', companyId);
+
+      if (userId) {
+        query = query.or(`assigned_to.eq.${userId},created_by.eq.${userId}`);
+      }
+
+      const { data: tasks, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        logger.error('Failed to fetch tasks', { error: error.message, companyId, userId });
+        throw new AppError(`Failed to fetch tasks: ${error.message}`, 500);
+      }
+
+      // Enrich with user data
+      const userIds = new Set<string>();
+      const tasksArray: any[] = (tasks || []) as any[];
+      tasksArray.forEach((task: any) => {
+        if (task && task.assigned_to) userIds.add(task.assigned_to);
+        if (task && task.created_by) userIds.add(task.created_by);
+      });
+
+      let usersMap: Record<string, any> = {};
+      if (userIds.size > 0) {
+        const { data: users } = await db
+          .from('users')
+          .select('id, full_name, avatar_url')
+          .in('id', Array.from(userIds));
+
+        if (users) {
+          users.forEach((user: any) => {
+            usersMap[user.id] = user;
+          });
+        }
+      }
+
+      return tasksArray.map((task: any) => ({
+        ...task,
+        assignee: task.assigned_to ? usersMap[task.assigned_to] || null : null,
+        reporter: task.created_by ? usersMap[task.created_by] || null : null,
+      }));
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Get all tasks error', { error, companyId, userId });
+      throw new AppError('Failed to fetch tasks', 500);
+    }
+  }
 }

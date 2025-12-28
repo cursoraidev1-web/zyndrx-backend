@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { 
   saveDocument, 
-  getDocuments, 
+  getDocuments,
+  getDocument,
+  updateDocument,
   requestUploadToken,
   getDocumentDownloadUrl,
   deleteDocument
@@ -11,7 +13,8 @@ import { validate } from '../../middleware/validation.middleware';
 import { 
   uploadTokenSchema, 
   saveDocumentSchema, 
-  getDocumentsSchema 
+  getDocumentsSchema,
+  updateDocumentSchema
 } from './documents.validation';
 
 const router = Router();
@@ -26,8 +29,14 @@ router.post('/', validate(saveDocumentSchema), saveDocument);
 // GET /api/v1/documents?project_id=... - Get project documents
 router.get('/', validate(getDocumentsSchema), getDocuments);
 
+// GET /api/v1/documents/:id - Get single document
+router.get('/:id', getDocument);
+
 // GET /api/v1/documents/:id/download - Get signed download URL
 router.get('/:id/download', getDocumentDownloadUrl);
+
+// PATCH /api/v1/documents/:id - Update document metadata
+router.patch('/:id', validate(updateDocumentSchema), updateDocument);
 
 // DELETE /api/v1/documents/:id - Delete document
 router.delete('/:id', deleteDocument);

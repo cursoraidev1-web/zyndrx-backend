@@ -129,4 +129,136 @@ export class ProjectService {
       throw new AppError('Failed to fetch project', 500);
     }
   }
+
+  static async updateProject(projectId: string, companyId: string, updates: any) {
+    try {
+      const updatePayload: any = {
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: project, error } = await (db.from('projects') as any)
+        .update(updatePayload)
+        .eq('id', projectId)
+        .eq('company_id', companyId)
+        .select()
+        .single();
+
+      if (error) {
+        logger.error('Failed to update project', { error: error.message, projectId, companyId });
+        throw new AppError(`Failed to update project: ${error.message}`, 500);
+      }
+
+      if (!project) {
+        throw new AppError('Project not found or access denied', 404);
+      }
+
+      return project;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Update project error', { error, projectId, companyId });
+      throw new AppError('Failed to update project', 500);
+    }
+  }
+
+  static async deleteProject(projectId: string, companyId: string) {
+    try {
+      const { error } = await (db.from('projects') as any)
+        .delete()
+        .eq('id', projectId)
+        .eq('company_id', companyId);
+
+      if (error) {
+        logger.error('Failed to delete project', { error: error.message, projectId, companyId });
+        throw new AppError(`Failed to delete project: ${error.message}`, 500);
+      }
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Delete project error', { error, projectId, companyId });
+      throw new AppError('Failed to delete project', 500);
+    }
+  }
+
+  static async getProjectMembers(projectId: string, companyId: string) {
+    try {
+      // Verify project belongs to company
+      const project = await this.getProjectById(projectId, companyId);
+
+      const { data: members, error } = await db
+        .from('project_members')
+        .select(`
+          *,
+          users!project_members_user_id_fkey (
+            id,
+            full_name,
+            email,
+            avatar_url,
+            role
+          )
+        `)
+        .eq('project_id', projectId);
+
+      if (error) {
+        logger.error('Failed to fetch project members', { error: error.message, projectId });
+        throw new AppError(`Failed to fetch project members: ${error.message}`, 500);
+      }
+
+      return members || [];
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Get project members error', { error, projectId, companyId });
+      throw new AppError('Failed to fetch project members', 500);
+    }
+  }
+
+  static async addProjectMember(projectId: string, companyId: string, userId: string, role: string) {
+    try {
+      // Verify project belongs to company
+      await this.getProjectById(projectId, companyId);
+
+      const { data: member, error } = await (db.from('project_members') as any)
+        .insert({
+          project_id: projectId,
+          user_id: userId,
+          role: role || 'developer'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          throw new AppError('User is already a member of this project', 409);
+        }
+        logger.error('Failed to add project member', { error: error.message, projectId, userId });
+        throw new AppError(`Failed to add project member: ${error.message}`, 500);
+      }
+
+      return member;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Add project member error', { error, projectId, companyId, userId });
+      throw new AppError('Failed to add project member', 500);
+    }
+  }
+
+  static async removeProjectMember(projectId: string, companyId: string, memberUserId: string) {
+    try {
+      // Verify project belongs to company
+      await this.getProjectById(projectId, companyId);
+
+      const { error } = await (db.from('project_members') as any)
+        .delete()
+        .eq('project_id', projectId)
+        .eq('user_id', memberUserId);
+
+      if (error) {
+        logger.error('Failed to remove project member', { error: error.message, projectId, memberUserId });
+        throw new AppError(`Failed to remove project member: ${error.message}`, 500);
+      }
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Remove project member error', { error, projectId, companyId, memberUserId });
+      throw new AppError('Failed to remove project member', 500);
+    }
+  }
 }

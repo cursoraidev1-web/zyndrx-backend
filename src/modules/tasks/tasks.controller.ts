@@ -34,11 +34,47 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
   }
 };
 
+export const getTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const task = await TaskService.getTaskById(id);
+    return ResponseHandler.success(res, task, 'Task fetched successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const task = await TaskService.updateTask(id, req.body);
     return ResponseHandler.success(res, task, 'Task updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    await TaskService.deleteTask(id);
+    return ResponseHandler.success(res, null, 'Task deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllTasks = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const companyId = req.user!.companyId;
+    const userId = req.query.user_id as string | undefined;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const tasks = await TaskService.getAllTasks(companyId, userId);
+    return ResponseHandler.success(res, tasks, 'Tasks fetched successfully');
   } catch (error) {
     next(error);
   }

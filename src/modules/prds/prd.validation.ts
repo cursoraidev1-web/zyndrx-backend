@@ -9,9 +9,23 @@ export const createPrdSchema = z.object({
   }),
 });
 
+export const updatePrdSchema = z.object({
+  body: z.object({
+    title: z.string().min(3, { message: "Title must be at least 3 characters" }).optional(),
+    content: z.record(z.string(), z.any()).optional(),
+  }),
+});
+
 export const updatePrdStatusSchema = z.object({
   body: z.object({
-    // REMOVE the second argument entirely to stop the error.
     status: z.enum(['draft', 'in_review', 'approved', 'rejected']), 
+  }),
+});
+
+export const createPrdVersionSchema = z.object({
+  body: z.object({
+    title: z.string().min(3, { message: "Title must be at least 3 characters" }),
+    content: z.record(z.string(), z.any()),
+    changes_summary: z.string().optional(),
   }),
 });

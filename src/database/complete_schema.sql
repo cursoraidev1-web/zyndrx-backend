@@ -154,7 +154,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   due_date TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
-  order_index INTEGER NOT NULL DEFAULT 0
+  order_index INTEGER NOT NULL DEFAULT 0,
+  tags TEXT[] DEFAULT '{}'
   -- company_id will be added in migration section
 );
 
@@ -315,6 +316,7 @@ CREATE TABLE IF NOT EXISTS plan_limits (
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS team_name TEXT DEFAULT 'Engineering';
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE prds ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
@@ -347,6 +349,7 @@ CREATE INDEX IF NOT EXISTS idx_user_companies_company_id ON user_companies(compa
 CREATE INDEX IF NOT EXISTS idx_projects_company_id ON projects(company_id);
 CREATE INDEX IF NOT EXISTS idx_projects_team_name ON projects(team_name);
 CREATE INDEX IF NOT EXISTS idx_tasks_company_id ON tasks(company_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_tags ON tasks USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_documents_company_id ON documents(company_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_company_id ON notifications(company_id);
 CREATE INDEX IF NOT EXISTS idx_prds_company_id ON prds(company_id);

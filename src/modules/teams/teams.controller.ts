@@ -41,4 +41,142 @@ export class TeamController {
       next(error);
     }
   };
+
+  // Teams CRUD
+  public createTeam = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+      const { name, description, team_lead_id } = req.body;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const team = await TeamService.createTeam({
+        company_id: companyId,
+        name,
+        description,
+        team_lead_id,
+        created_by: userId,
+      });
+
+      return ResponseHandler.created(res, team, 'Team created successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getTeams = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const companyId = req.user!.companyId;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const teams = await TeamService.getTeams(companyId);
+      return ResponseHandler.success(res, teams, 'Teams fetched successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getTeam = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.user!.companyId;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const team = await TeamService.getTeamById(id, companyId);
+      return ResponseHandler.success(res, team, 'Team fetched successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public updateTeam = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.user!.companyId;
+      const updates = req.body;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const team = await TeamService.updateTeam(id, companyId, updates);
+      return ResponseHandler.success(res, team, 'Team updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public deleteTeam = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.user!.companyId;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      await TeamService.deleteTeam(id, companyId);
+      return ResponseHandler.success(res, null, 'Team deleted successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getTeamMembers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.user!.companyId;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const members = await TeamService.getTeamMembers(id, companyId);
+      return ResponseHandler.success(res, members, 'Team members fetched successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public addTeamMember = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const companyId = req.user!.companyId;
+      const { user_id, role } = req.body;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const member = await TeamService.addTeamMember(id, companyId, user_id, role);
+      return ResponseHandler.created(res, member, 'Member added to team successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public removeTeamMember = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, userId } = req.params;
+      const companyId = req.user!.companyId;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      await TeamService.removeTeamMember(id, companyId, userId);
+      return ResponseHandler.success(res, null, 'Member removed from team successfully');
+    } catch (error) {
+      next(error);
+    }
+  };
 }

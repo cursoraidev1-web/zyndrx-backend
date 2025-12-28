@@ -20,6 +20,9 @@ import teamRoutes from './modules/teams/teams.routes';
 import companyRoutes from './modules/companies/companies.routes';
 import subscriptionRoutes from './modules/subscriptions/subscriptions.routes';
 import plansRoutes from './modules/subscriptions/subscriptions.public.routes';
+import commentRoutes from './modules/comments/comments.routes';
+import handoffRoutes from './modules/handoffs/handoffs.routes';
+import activityRoutes from './modules/activity/activity.routes';
 
 class App {
   public app: Application;
@@ -95,6 +98,9 @@ class App {
     this.app.use(`${apiPrefix}/teams`, teamRoutes);
     this.app.use(`${apiPrefix}/subscription`, subscriptionRoutes);
     this.app.use(`${apiPrefix}/plans`, plansRoutes); // Plans endpoint (public)
+    this.app.use(`${apiPrefix}/comments`, commentRoutes);
+    this.app.use(`${apiPrefix}/handoffs`, handoffRoutes);
+    this.app.use(`${apiPrefix}/activity`, activityRoutes);
 
     // Welcome route (API Directory)
     this.app.get('/', (req: express.Request, res: express.Response) => {

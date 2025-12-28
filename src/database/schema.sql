@@ -90,7 +90,8 @@ CREATE TABLE tasks (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   due_date TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
-  order_index INTEGER NOT NULL DEFAULT 0
+  order_index INTEGER NOT NULL DEFAULT 0,
+  tags TEXT[] DEFAULT '{}'
 );
  
 -- Comments (for PRDs and tasks)

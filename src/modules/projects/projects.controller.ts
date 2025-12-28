@@ -70,3 +70,94 @@ export const getProjectDetails = async (req: Request, res: Response, next: NextF
     next(error);
   }
 };
+
+export const updateProject = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user!.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const { name, description, start_date, end_date, status, team_name } = req.body;
+    
+    const project = await ProjectService.updateProject(id, companyId, {
+      name,
+      description,
+      start_date,
+      end_date,
+      status,
+      team_name
+    });
+
+    return ResponseHandler.success(res, project, 'Project updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteProject = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user!.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    await ProjectService.deleteProject(id, companyId);
+    return ResponseHandler.success(res, null, 'Project deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getProjectMembers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user!.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const members = await ProjectService.getProjectMembers(id, companyId);
+    return ResponseHandler.success(res, members, 'Project members fetched successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addProjectMember = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user!.companyId;
+    const { user_id, role } = req.body;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const member = await ProjectService.addProjectMember(id, companyId, user_id, role);
+    return ResponseHandler.created(res, member, 'Member added to project successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const removeProjectMember = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, userId } = req.params;
+    const companyId = req.user!.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    await ProjectService.removeProjectMember(id, companyId, userId);
+    return ResponseHandler.success(res, null, 'Member removed from project successfully');
+  } catch (error) {
+    next(error);
+  }
+};

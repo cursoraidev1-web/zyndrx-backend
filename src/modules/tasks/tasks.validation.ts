@@ -19,5 +19,6 @@ export const updateTaskSchema = z.object({
     priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
     assigned_to: z.string().uuid().nullable().optional(), // Nullable to unassign
     description: z.string().optional(),
+    tags: z.array(z.string()).optional(),
   }),
 });
