@@ -11,3 +11,4 @@ router.get('/', getActivityFeed);
 
 export default router;
 
+

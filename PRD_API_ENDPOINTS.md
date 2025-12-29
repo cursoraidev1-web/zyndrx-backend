@@ -499,3 +499,4 @@ The `content` field is a flexible JSON object. Here's a recommended structure:
 - `PATCH /api/v1/prds/:id` - Update PRD content
 - `PATCH /api/v1/prds/:id/status` - Update PRD status (admin only)
 
+
