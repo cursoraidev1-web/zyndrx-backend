@@ -36,6 +36,36 @@ class App {
   }
 
   private configureMiddleware(): void {
+    // Trust proxy for correct redirect URLs in production (must be first)
+    this.app.set('trust proxy', true);
+
+    // CORS configuration (MUST BE BEFORE OTHER MIDDLEWARE for OPTIONS requests)
+    this.app.use(
+      cors({
+        origin: (origin, callback) => {
+          // Allow requests with no origin (mobile apps, Postman, etc.)
+          if (!origin) return callback(null, true);
+          
+          // Check if origin is in allowed list
+          if (config.cors.allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            // In development, allow localhost with any port
+            if (config.server.isDevelopment && origin.startsWith('http://localhost:')) {
+              callback(null, true);
+            } else {
+              callback(new Error('Not allowed by CORS'));
+            }
+          }
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'x-github-event', 'x-hub-signature-256'],
+        preflightContinue: false,
+        optionsSuccessStatus: 204,
+      })
+    );
+
     // Enhanced security headers with CSP
     this.app.use(
       helmet({
@@ -64,21 +94,8 @@ class App {
       })
     );
 
-    // Input sanitization (must be before body parsing)
+    // Input sanitization (must be before body parsing, but after CORS)
     this.app.use(sanitizeInput);
-
-    // CORS configuration (IMPORTANT FOR FRONTEND!)
-    this.app.use(
-      cors({
-        origin: config.cors.allowedOrigins, // Your frontend URLs
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'x-github-event', 'x-hub-signature-256'], // Added GitHub headers
-      })
-    );
-
-    // Trust proxy for correct redirect URLs in production
-    this.app.set('trust proxy', true);
 
     // Body parsing middleware
     this.app.use(express.json({ limit: '10mb' }));
