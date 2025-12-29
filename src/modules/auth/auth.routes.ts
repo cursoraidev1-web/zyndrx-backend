@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthController } from './auth.controller';
 import { validate } from '../../middleware/validation.middleware';
 import { authenticate } from '../../middleware/auth.middleware';
+import { registrationRateLimiter } from '../../middleware/rate-limit.middleware';
 import { CompanyController } from '../companies/companies.controller';
 import {
   registerSchema,
@@ -11,7 +12,8 @@ import {
   verify2FASchema,
   login2FASchema,
   forgotPasswordSchema, 
-  resetPasswordSchema   
+  resetPasswordSchema,
+  createUserSchema
 } from './auth.validation';
 
 const router = Router();
@@ -21,9 +23,9 @@ const companyController = new CompanyController();
 /**
  * @route   POST /api/v1/auth/register
  * @desc    Register a new user
- * @access  Public
+ * @access  Public (Rate limited: 3 per 15 minutes per IP)
  */
-router.post('/register', validate(registerSchema), authController.register);
+router.post('/register', registrationRateLimiter, validate(registerSchema), authController.register);
 
 /**
  * @route   POST /api/v1/auth/login
@@ -149,5 +151,12 @@ router.get('/companies', authenticate, companyController.getMyCompanies);
  * @access  Private
  */
 router.post('/switch-company', authenticate, companyController.switchCompany);
+
+/**
+ * @route   POST /api/v1/auth/users/:companyId
+ * @desc    Create user in company (Admin only)
+ * @access  Private (Admin only)
+ */
+router.post('/users/:companyId', authenticate, validate(createUserSchema), authController.createUser);
 
 export default router;

@@ -12,9 +12,9 @@ export class AuthController {
   
   // POST /api/v1/auth/register
   register = asyncHandler(async (req: Request, res: Response) => {
-    const { email, password, fullName, role, companyName } = req.body;
+    const { email, password, fullName, role, companyName, invitationToken } = req.body;
 
-    logger.info('User registration attempt', { email });
+    logger.info('User registration attempt', { email, hasInvitation: !!invitationToken });
 
     const result = await authService.register({
       email,
@@ -22,6 +22,7 @@ export class AuthController {
       fullName,
       role,
       companyName,
+      invitationToken,
     });
 
     logger.info('User registered successfully', { userId: result.user.id, email });
@@ -32,10 +33,12 @@ export class AuthController {
   // POST /api/v1/auth/login
   login = asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
 
-    logger.info('User login attempt', { email });
+    logger.info('User login attempt', { email, ip: ipAddress });
 
-    const result = await authService.login({ email, password });
+    const result = await authService.login({ email, password }, ipAddress, userAgent);
 
     // Handle 2FA Requirement
     if ('require2fa' in result) {
@@ -280,5 +283,26 @@ export class AuthController {
     const result = await authService.loginVerify2FA(email, token);
     logger.info('2FA login verified', { userId: result.user.id });
     return ResponseHandler.success(res, result, 'Login successful');
+  });
+
+  // POST /api/v1/auth/users/:companyId (Admin only - create user in company)
+  createUser = asyncHandler(async (req: Request, res: Response) => {
+    const { companyId } = req.params;
+    const { email, password, fullName, role, companyRole } = req.body;
+    const adminUserId = req.user!.id;
+
+    logger.info('Admin creating user', { adminUserId, companyId, email });
+
+    const result = await authService.createUserAsAdmin(adminUserId, companyId, {
+      email,
+      password,
+      fullName,
+      role,
+      companyRole,
+    });
+
+    logger.info('User created by admin', { userId: result.user.id, adminUserId, companyId });
+
+    return ResponseHandler.created(res, result, 'User created successfully');
   });
 }

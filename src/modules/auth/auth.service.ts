@@ -9,6 +9,7 @@ import { AppError } from '../../middleware/error.middleware';
 import logger from '../../utils/logger';
 import { CompanyService } from '../companies/companies.service';
 import { SubscriptionService } from '../subscriptions/subscriptions.service';
+import { SecurityService } from '../../services/security.service';
 
 // Type helpers for Supabase queries
 type UserRow = Database['public']['Tables']['users']['Row'];
@@ -19,8 +20,9 @@ export interface RegisterData {
   email: string;
   password: string;
   fullName: string;
-  companyName: string;
+  companyName?: string;
   role?: UserRole;
+  invitationToken?: string; // For accepting company invitations
 }
 
 export interface LoginData {
@@ -76,12 +78,12 @@ export class AuthService {
         throw new AppError('User with this email already exists', 409);
       }
 
-      // Create Auth User
+      // Create Auth User (email verification required)
       logger.info('Creating auth user', { email: data.email });
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
-        email_confirm: true,
+        email_confirm: false, // Require email verification
         user_metadata: { full_name: data.fullName, role: data.role || 'developer' },
       });
 
@@ -154,19 +156,44 @@ export class AuthService {
         throw new AppError('User profile creation failed - user data is invalid', 500);
       }
 
-      // Create company for the user (subscription is created automatically in createCompany)
-      logger.info('Creating company for user', { userId: user.id, companyName: data.companyName });
-      const company = await CompanyService.createCompany({
-        name: data.companyName,
-        userId: user.id,
-      });
+      let company: any = null;
 
-      if (!company || !company.id) {
-        logger.error('Company validation failed - company is null or missing id', { company, userId: user.id });
-        throw new AppError('Company creation failed - company data is invalid', 500);
+      // Check if this is an invitation-based registration
+      if (data.invitationToken) {
+        logger.info('Processing company invitation', { email: data.email, token: data.invitationToken });
+        
+        // Accept company invitation
+        const invitationResult = await CompanyService.acceptCompanyInvitation(
+          data.invitationToken,
+          user.id,
+          data.email
+        );
+
+        if (!invitationResult || !invitationResult.company) {
+          throw new AppError('Invalid or expired invitation token', 400);
+        }
+
+        company = invitationResult.company;
+        logger.info('Company invitation accepted', { companyId: (company as any).id, userId: user.id });
+      } else {
+        // Create company for the user (subscription is created automatically in createCompany)
+        if (!data.companyName) {
+          throw new AppError('Company name is required for new registrations', 400);
+        }
+
+        logger.info('Creating company for user', { userId: user.id, companyName: data.companyName });
+        company = await CompanyService.createCompany({
+          name: data.companyName,
+          userId: user.id,
+        });
+
+        if (!company || !company.id) {
+          logger.error('Company validation failed - company is null or missing id', { company, userId: user.id });
+          throw new AppError('Company creation failed - company data is invalid', 500);
+        }
+
+        logger.info('Company created successfully', { companyId: company.id, userId: user.id });
       }
-
-      logger.info('Company created successfully', { companyId: company.id, userId: user.id });
 
       // Get user's companies
       logger.info('Fetching user companies', { userId: user.id });
@@ -248,15 +275,46 @@ export class AuthService {
   }
 
   // 2. LOGIN USER (Standard)
-  async login(data: LoginData): Promise<AuthResponse | TwoFactorResponse> {
+  async login(data: LoginData, ipAddress?: string, userAgent?: string): Promise<AuthResponse | TwoFactorResponse> {
     try {
+      // Check if user exists first to check lock status
+      const { data: existingUser } = await supabaseAdmin
+        .from('users')
+        .select('id, locked_until, failed_login_attempts')
+        .eq('email', data.email)
+        .single() as any;
+
+      if (existingUser) {
+        // Check if account is locked
+        const isLocked = await SecurityService.isAccountLocked(existingUser.id);
+        if (isLocked) {
+          const remainingMinutes = await SecurityService.getRemainingLockoutTime(existingUser.id);
+          await SecurityService.logSecurityEvent({
+            userId: existingUser.id,
+            eventType: 'login_blocked_locked',
+            ipAddress,
+            userAgent,
+            success: false,
+            details: { email: data.email, reason: 'account_locked' },
+          });
+          throw new AppError(
+            `Account is locked due to too many failed login attempts. Please try again in ${remainingMinutes} minutes.`,
+            423 // 423 Locked
+          );
+        }
+      }
+
       // Auth with Supabase
       const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
 
-      if (authError || !authData.user) throw new AppError('Invalid email or password', 401);
+      if (authError || !authData.user) {
+        // Record failed login attempt
+        await SecurityService.recordFailedLogin(data.email, ipAddress, userAgent);
+        throw new AppError('Invalid email or password', 401);
+      }
 
       // Get Profile & 2FA Status
       const { data: user } = await supabaseAdmin
@@ -265,7 +323,23 @@ export class AuthService {
         .eq('id', authData.user.id)
         .single() as any;
 
-      if (!user || !user.is_active) throw new AppError('Account inactive or not found', 403);
+      if (!user || !user.is_active) {
+        await SecurityService.recordFailedLogin(data.email, ipAddress, userAgent);
+        throw new AppError('Account inactive or not found', 403);
+      }
+
+      // Reset failed attempts on successful login
+      await SecurityService.resetFailedAttempts(user.id);
+      
+      // Log successful login attempt
+      await SecurityService.logSecurityEvent({
+        userId: user.id,
+        eventType: 'login_success',
+        ipAddress,
+        userAgent,
+        success: true,
+        details: { email: data.email },
+      });
 
       // Update Last Login
       await (supabaseAdmin.from('users') as any).update({ last_login: new Date().toISOString() }).eq('id', user.id);
@@ -523,6 +597,102 @@ export class AuthService {
 
     if (error) throw new AppError('Failed to update profile', 500);
     return user;
+  }
+
+  // ADMIN: CREATE USER (Admin only - for creating users in their company)
+  async createUserAsAdmin(
+    adminUserId: string,
+    companyId: string,
+    data: { email: string; password: string; fullName: string; role?: UserRole; companyRole?: string }
+  ) {
+    try {
+      // Verify admin is company admin
+      const { data: membership } = await supabaseAdmin
+        .from('user_companies')
+        .select('role')
+        .eq('company_id', companyId)
+        .eq('user_id', adminUserId)
+        .single();
+
+      const member = membership as any;
+      if (!member || member.role !== 'admin') {
+        throw new AppError('Only company admins can create users', 403);
+      }
+
+      // Check if user already exists
+      const { data: existingUser } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', data.email)
+        .single();
+
+      if (existingUser) {
+        throw new AppError('User with this email already exists', 409);
+      }
+
+      // Create auth user
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: data.email,
+        password: data.password,
+        email_confirm: false, // Require email verification
+        user_metadata: { full_name: data.fullName, role: data.role || 'developer' },
+      });
+
+      if (authError || !authData.user) {
+        throw new AppError(`Failed to create user: ${authError?.message}`, 500);
+      }
+
+      // Create user profile
+      const { data: user, error: profileError } = await (supabaseAdmin.from('users') as any).insert({
+        id: authData.user.id,
+        email: data.email,
+        full_name: data.fullName,
+        role: data.role || 'developer',
+      }).select().single();
+
+      if (profileError || !user) {
+        // Cleanup auth user
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        throw new AppError(`Failed to create user profile: ${profileError?.message}`, 500);
+      }
+
+      // Add user to company
+      const { data: newMember, error: memberError } = await (supabaseAdmin.from('user_companies') as any)
+        .insert({
+          user_id: user.id,
+          company_id: companyId,
+          role: data.companyRole || 'member',
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (memberError) {
+        logger.error('Failed to add user to company after creation', { error: memberError, userId: user.id, companyId });
+        throw new AppError('User created but failed to add to company', 500);
+      }
+
+      logger.info('User created by admin', { 
+        createdBy: adminUserId, 
+        userId: user.id, 
+        email: data.email, 
+        companyId 
+      });
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.full_name,
+          role: user.role,
+        },
+        companyMembership: newMember,
+      };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Failed to create user as admin', { error, adminUserId, companyId });
+      throw new AppError('Failed to create user', 500);
+    }
   }
 
   // PRIVATE: Generate JWT

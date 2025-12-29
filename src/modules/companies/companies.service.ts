@@ -28,6 +28,20 @@ export class CompanyService {
    */
   static async createCompany(data: CreateCompanyData) {
     try {
+      // Check if company name already exists (case-insensitive)
+      const { data: existingCompany } = await db
+        .from('companies')
+        .select('id, name')
+        .ilike('name', data.name.trim())
+        .single();
+
+      if (existingCompany) {
+        throw new AppError(
+          'A company with this name already exists. Please choose a different name.',
+          409
+        );
+      }
+
       // Generate unique slug
       let slug = await this.generateUniqueSlug(data.name);
       let company = null;
@@ -285,7 +299,7 @@ export class CompanyService {
   }
 
   /**
-   * Invite user to company
+   * Invite user to company (supports both existing and new users)
    */
   static async inviteUser(companyId: string, email: string, role: string, inviterId: string) {
     try {
@@ -302,6 +316,15 @@ export class CompanyService {
         throw new AppError('Only company admins can invite users', 403);
       }
 
+      // Get company info for email
+      const { data: company } = await db
+        .from('companies')
+        .select('name')
+        .eq('id', companyId)
+        .single();
+
+      const companyData = company as any;
+
       // Find user by email
       const { data: user } = await db
         .from('users')
@@ -310,39 +333,180 @@ export class CompanyService {
         .single();
 
       const userData = user as any;
-      if (!userData || !userData.id) {
-        throw new AppError('User not found', 404);
+
+      // If user exists, add them directly
+      if (userData && userData.id) {
+        // Check if already a member
+        const { data: existing } = await db
+          .from('user_companies')
+          .select('id')
+          .eq('company_id', companyId)
+          .eq('user_id', userData.id)
+          .single();
+
+        if (existing) {
+          throw new AppError('User is already a member of this company', 409);
+        }
+
+        // Add user to company
+        const { data: newMember, error } = await (db.from('user_companies') as any)
+          .insert({
+            user_id: userData.id,
+            company_id: companyId,
+            role: role || 'member',
+            status: 'active',
+          })
+          .select()
+          .single();
+
+        if (error) throw new AppError(error.message, 500);
+
+        logger.info('User added to company directly', { userId: userData.id, companyId, email });
+        return { ...newMember, isNewUser: false };
       }
 
-      // Check if already a member
-      const { data: existing } = await db
-        .from('user_companies')
+      // User doesn't exist - create invitation
+      const crypto = require('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+      // Check for existing pending invite
+      const { data: existingInvite } = await db
+        .from('company_invites')
         .select('id')
         .eq('company_id', companyId)
-        .eq('user_id', userData.id)
+        .eq('email', email)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
         .single();
 
-      if (existing) {
-        throw new AppError('User is already a member of this company', 409);
+      if (existingInvite) {
+        throw new AppError('An invitation has already been sent to this email', 409);
+      }
+
+      // Create invitation
+      const { data: invite, error: inviteError } = await (db.from('company_invites') as any)
+        .insert({
+          company_id: companyId,
+          email: email.trim().toLowerCase(),
+          token,
+          role: role || 'member',
+          invited_by: inviterId,
+          status: 'pending',
+          expires_at: expiresAt.toISOString(),
+        })
+        .select()
+        .single();
+
+      if (inviteError) throw new AppError(inviteError.message, 500);
+
+      // Send invitation email
+      const { Resend } = require('resend');
+      const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+      const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const inviteLink = `${baseUrl}/accept-company-invite?token=${token}`;
+
+      if (resend) {
+        try {
+          await resend.emails.send({
+            from: process.env.EMAIL_FROM || 'Zyndrx <noreply@zyndrx.com>',
+            to: email,
+            subject: `You've been invited to join ${companyData?.name || 'a company'} on Zyndrx`,
+            html: `
+              <h2>You've been invited!</h2>
+              <p>You have been invited to join <strong>${companyData?.name || 'a company'}</strong> on Zyndrx.</p>
+              <p>Click the link below to create your account and accept the invitation:</p>
+              <p><a href="${inviteLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Accept Invitation</a></p>
+              <p>This invitation link expires in 7 days.</p>
+              <p>If you didn't request this invitation, you can safely ignore this email.</p>
+            `,
+          });
+          logger.info('Invitation email sent', { email, companyId });
+        } catch (emailError) {
+          logger.error('Failed to send invitation email', { email, error: emailError });
+          // Don't fail the invitation if email fails - return the link
+        }
+      } else {
+        logger.info('Email mock (no API key)', { email, inviteLink });
+      }
+
+      logger.info('Company invitation created', { email, companyId, token });
+      return { invite, link: inviteLink, isNewUser: true };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Failed to invite user', { error, email, companyId });
+      throw new AppError('Failed to invite user', 500);
+    }
+  }
+
+  /**
+   * Accept company invitation (for new users during registration)
+   */
+  static async acceptCompanyInvitation(token: string, userId: string, email: string) {
+    try {
+      // Find invitation
+      const { data: invite, error: inviteError } = await db
+        .from('company_invites')
+        .select('*')
+        .eq('token', token)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (inviteError || !invite) {
+        throw new AppError('Invalid or expired invitation token', 400);
+      }
+
+      const inviteData = invite as any;
+
+      // Verify email matches
+      if (inviteData.email.toLowerCase() !== email.toLowerCase()) {
+        throw new AppError('Email does not match invitation', 400);
+      }
+
+      // Get company details
+      const { data: company } = await db
+        .from('companies')
+        .select('*')
+        .eq('id', inviteData.company_id)
+        .single();
+
+      if (!company) {
+        throw new AppError('Company not found', 404);
       }
 
       // Add user to company
-      const { data: newMember, error } = await (db.from('user_companies') as any)
+      const { data: newMember, error: memberError } = await (db.from('user_companies') as any)
         .insert({
-          user_id: userData.id,
-          company_id: companyId,
-          role: role || 'member',
+          user_id: userId,
+          company_id: inviteData.company_id,
+          role: inviteData.role || 'member',
           status: 'active',
         })
         .select()
         .single();
 
-      if (error) throw new AppError(error.message, 500);
+      if (memberError) {
+        // If user is already a member, that's okay - just mark invite as accepted
+        if (memberError.message?.includes('unique constraint')) {
+          logger.info('User already a member, marking invite as accepted', { userId, companyId: inviteData.company_id });
+        } else {
+          throw new AppError(memberError.message, 500);
+        }
+      }
 
-      return newMember;
+      // Mark invitation as accepted
+      await (db.from('company_invites') as any)
+        .update({ status: 'accepted' })
+        .eq('id', inviteData.id);
+
+      logger.info('Company invitation accepted', { userId, companyId: inviteData.company_id, email });
+      return { company, member: newMember };
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppError('Failed to invite user', 500);
+      logger.error('Failed to accept company invitation', { error, token, userId, email });
+      throw new AppError('Failed to accept invitation', 500);
     }
   }
 

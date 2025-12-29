@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { config } from './config';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { rateLimiter } from './middleware/rate-limit.middleware';
+import { sanitizeInput } from './middleware/sanitize.middleware';
 import logger from './utils/logger';
 
 // Import routes
@@ -35,8 +36,36 @@ class App {
   }
 
   private configureMiddleware(): void {
-    // Security middleware
-    this.app.use(helmet());
+    // Enhanced security headers with CSP
+    this.app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for some libraries
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", 'data:', 'https:'],
+            connectSrc: ["'self'", config.supabase.url],
+            fontSrc: ["'self'", 'data:'],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'none'"],
+          },
+        },
+        crossOriginEmbedderPolicy: false, // Allow embedding for OAuth flows
+        hsts: {
+          maxAge: 31536000, // 1 year
+          includeSubDomains: true,
+          preload: true,
+        },
+        noSniff: true,
+        xssFilter: true,
+        referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      })
+    );
+
+    // Input sanitization (must be before body parsing)
+    this.app.use(sanitizeInput);
 
     // CORS configuration (IMPORTANT FOR FRONTEND!)
     this.app.use(
