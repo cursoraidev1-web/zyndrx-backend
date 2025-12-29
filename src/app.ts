@@ -24,6 +24,7 @@ import plansRoutes from './modules/subscriptions/subscriptions.public.routes';
 import commentRoutes from './modules/comments/comments.routes';
 import handoffRoutes from './modules/handoffs/handoffs.routes';
 import activityRoutes from './modules/activity/activity.routes';
+import userRoutes from './modules/users/users.routes';
 
 class App {
   public app: Application;
@@ -147,6 +148,7 @@ class App {
     this.app.use(`${apiPrefix}/comments`, commentRoutes);
     this.app.use(`${apiPrefix}/handoffs`, handoffRoutes);
     this.app.use(`${apiPrefix}/activity`, activityRoutes);
+    this.app.use(`${apiPrefix}/users`, userRoutes);
 
     // Welcome route (API Directory)
     this.app.get('/', (req: express.Request, res: express.Response) => {
@@ -157,14 +159,21 @@ class App {
         endpoints: {
           health: '/health',
           auth: `${apiPrefix}/auth`,
+          companies: `${apiPrefix}/companies`,
           projects: `${apiPrefix}/projects`,
           prds: `${apiPrefix}/prds`,
-          tasks: `${apiPrefix}/tasks`,       // <--- ADDED
-          github: `${apiPrefix}/github`,     // <--- ADDED
+          tasks: `${apiPrefix}/tasks`,
+          github: `${apiPrefix}/github`,
           notifications: `${apiPrefix}/notifications`,
           documents: `${apiPrefix}/documents`,
           analytics: `${apiPrefix}/analytics`,
           teams: `${apiPrefix}/teams`,
+          subscription: `${apiPrefix}/subscription`,
+          plans: `${apiPrefix}/plans`,
+          comments: `${apiPrefix}/comments`,
+          handoffs: `${apiPrefix}/handoffs`,
+          activity: `${apiPrefix}/activity`,
+          users: `${apiPrefix}/users`,
         },
       });
     });

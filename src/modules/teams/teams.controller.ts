@@ -10,8 +10,13 @@ export class TeamController {
       const { project_id } = req.params;
       const { email, role } = req.body;
       const userId = req.user!.id;
+      const companyId = req.user!.companyId;
 
-      const result = await TeamService.inviteUser(project_id, email, role, userId);
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const result = await TeamService.inviteUser(project_id, email, role, userId, companyId);
       return ResponseHandler.created(res, result, 'Invite sent successfully (Check server console for link)');
     } catch (error) {
       next(error);
@@ -35,7 +40,13 @@ export class TeamController {
   public getMembers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { project_id } = req.params;
-      const members = await TeamService.getMembers(project_id);
+      const companyId = req.user!.companyId;
+
+      if (!companyId) {
+        return ResponseHandler.error(res, 'Company context required', 400);
+      }
+
+      const members = await TeamService.getMembers(project_id, companyId);
       return ResponseHandler.success(res, members);
     } catch (error) {
       next(error);

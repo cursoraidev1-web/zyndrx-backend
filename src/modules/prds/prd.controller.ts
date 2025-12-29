@@ -5,11 +5,17 @@ import { ResponseHandler } from '../../utils/response';
 export const createPrd = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // req.user is guaranteed by the authenticate middleware
-    const userId = req.user!.id; 
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
     
     const prd = await PrdService.createPRD({
       ...req.body,
-      created_by: userId
+      created_by: userId,
+      company_id: companyId
     });
 
     return ResponseHandler.created(res, prd, 'PRD created successfully');
@@ -37,6 +43,11 @@ export const getPrds = async (req: Request, res: Response, next: NextFunction) =
   try {
     const { project_id } = req.query;
     const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
 
     let prds;
     if (project_id && typeof project_id === 'string') {
@@ -44,7 +55,7 @@ export const getPrds = async (req: Request, res: Response, next: NextFunction) =
       prds = await PrdService.getPRDsByProject(project_id);
     } else {
       // Get all PRDs (optionally filtered by user)
-      prds = await PrdService.getAllPRDs(userId);
+      prds = await PrdService.getAllPRDs(companyId, userId);
     }
 
     return ResponseHandler.success(res, prds, 'PRDs fetched successfully');
