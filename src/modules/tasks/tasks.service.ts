@@ -118,11 +118,28 @@ export class TaskService {
     }
   }
 
-  static async updateTask(taskId: string, updates: any) {
+  static async updateTask(taskId: string, companyId: string, updates: any) {
     try {
+      // First verify task belongs to company
+      const { data: existingTask, error: fetchError } = await db
+        .from('tasks')
+        .select('company_id')
+        .eq('id', taskId)
+        .single();
+
+      if (fetchError || !existingTask) {
+        throw new AppError('Task not found', 404);
+      }
+
+      const taskCompanyId = (existingTask as any).company_id;
+      if (taskCompanyId !== companyId) {
+        throw new AppError('Task not found or access denied', 404);
+      }
+
       const { data: task, error } = await (db.from('tasks') as any)
         .update(updates)
         .eq('id', taskId)
+        .eq('company_id', companyId)
         .select('*')
         .single();
 
@@ -130,7 +147,7 @@ export class TaskService {
         if (error.code === 'PGRST116') {
           throw new AppError('Task not found', 404);
         }
-        logger.error('Failed to update task', { error, taskId, updates });
+        logger.error('Failed to update task', { error, taskId, companyId, updates });
         throw new AppError(`Failed to update task: ${error.message}`, 500);
       }
 
@@ -155,29 +172,30 @@ export class TaskService {
       return task;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error('Update task error', { error, taskId, updates });
+      logger.error('Update task error', { error, taskId, companyId, updates });
       throw new AppError('Failed to update task', 500);
     }
   }
 
-  static async getTaskById(taskId: string) {
+  static async getTaskById(taskId: string, companyId: string) {
     try {
       const { data: task, error } = await db
         .from('tasks')
         .select('*')
         .eq('id', taskId)
+        .eq('company_id', companyId)
         .single();
 
       if (error) {
         if (error.code === 'PGRST116') {
-          throw new AppError('Task not found', 404);
+          throw new AppError('Task not found or access denied', 404);
         }
-        logger.error('Failed to fetch task', { error, taskId });
+        logger.error('Failed to fetch task', { error, taskId, companyId });
         throw new AppError(`Failed to fetch task: ${error.message}`, 500);
       }
 
       if (!task) {
-        throw new AppError('Task not found', 404);
+        throw new AppError('Task not found or access denied', 404);
       }
 
       // Fetch assignee and creator data
@@ -207,24 +225,41 @@ export class TaskService {
       } as any;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error('Get task by ID error', { error, taskId });
+      logger.error('Get task by ID error', { error, taskId, companyId });
       throw new AppError('Failed to fetch task', 500);
     }
   }
 
-  static async deleteTask(taskId: string) {
+  static async deleteTask(taskId: string, companyId: string) {
     try {
+      // First verify task belongs to company
+      const { data: existingTask, error: fetchError } = await db
+        .from('tasks')
+        .select('company_id')
+        .eq('id', taskId)
+        .single();
+
+      if (fetchError || !existingTask) {
+        throw new AppError('Task not found', 404);
+      }
+
+      const taskCompanyId = (existingTask as any).company_id;
+      if (taskCompanyId !== companyId) {
+        throw new AppError('Task not found or access denied', 404);
+      }
+
       const { error } = await (db.from('tasks') as any)
         .delete()
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .eq('company_id', companyId);
 
       if (error) {
-        logger.error('Failed to delete task', { error: error.message, taskId });
+        logger.error('Failed to delete task', { error: error.message, taskId, companyId });
         throw new AppError(`Failed to delete task: ${error.message}`, 500);
       }
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error('Delete task error', { error, taskId });
+      logger.error('Delete task error', { error, taskId, companyId });
       throw new AppError('Failed to delete task', 500);
     }
   }

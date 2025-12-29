@@ -86,28 +86,35 @@ export class PrdService {
   }
 
   // 2c. Get all PRDs (for listing)
-  static async getAllPRDs(userId?: string) {
-    let query = db
-      .from('prds')
-      .select(`
-        *,
-        projects ( name ),
-        users!prds_created_by_fkey ( full_name )
-      `)
-      .order('created_at', { ascending: false });
+  static async getAllPRDs(companyId: string, userId?: string) {
+    try {
+      let query = db
+        .from('prds')
+        .select(`
+          *,
+          projects ( name ),
+          users!prds_created_by_fkey ( full_name )
+        `)
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
 
-    // If userId provided, filter by creator
-    if (userId) {
-      query = query.eq('created_by', userId);
+      // If userId provided, filter by creator
+      if (userId) {
+        query = query.eq('created_by', userId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch PRDs', { error: error.message, companyId, userId });
+        throw new AppError(`Failed to fetch PRDs: ${error.message}`, 500);
+      }
+      return data || [];
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Get all PRDs error', { error, companyId, userId });
+      throw new AppError('Failed to fetch PRDs', 500);
     }
-
-    const { data, error } = await query;
-
-    if (error) {
-      logger.error('Failed to fetch PRDs', { error: error.message, userId });
-      throw new AppError(`Failed to fetch PRDs: ${error.message}`, 500);
-    }
-    return data || [];
   }
 
   // 2d. Update PRD content
