@@ -60,7 +60,7 @@ export class AuthController {
     const { accessToken, companyName } = req.body;
 
     if (!accessToken) {
-      return ResponseHandler.badRequest(res, 'Access token is required');
+      return ResponseHandler.error(res, 'Access token is required', 400);
     }
 
     logger.info('Exchanging Supabase OAuth session', { hasCompanyName: !!companyName });
