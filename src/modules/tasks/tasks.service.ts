@@ -72,6 +72,7 @@ export class TaskService {
         .select('company_id')
         .eq('id', data.project_id)
         .single();
+        
 
       if (projectError || !project) {
         logger.error('Project not found', { projectId: data.project_id, error: projectError });
