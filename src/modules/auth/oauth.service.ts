@@ -6,6 +6,34 @@ import { CompanyService } from '../companies/companies.service';
 import { UserRole } from '../../types/database.types';
 import logger from '../../utils/logger';
 
+// Import types from auth.service (note: these should ideally be exported from a shared types file)
+// For now, we'll use the same interface structure
+export interface AuthResponse {
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    role: UserRole;
+    avatarUrl: string | null;
+  };
+  token: string;
+  companyId?: string;
+  companies?: Array<{
+    id: string;
+    name: string;
+    role: string;
+  }>;
+  currentCompany?: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface TwoFactorResponse {
+  require2fa: true;
+  email: string;
+}
+
 export class OAuthService {
   /**
    * Get Supabase OAuth URL for a provider
@@ -46,7 +74,7 @@ export class OAuthService {
   static async exchangeSupabaseSession(
     supabaseAccessToken: string,
     companyName?: string
-  ) {
+  ): Promise<AuthResponse | TwoFactorResponse> {
     try {
       // Validate the Supabase session token
       const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(supabaseAccessToken);
@@ -142,8 +170,28 @@ export class OAuthService {
         throw new AppError('Account inactive or not found', 403);
       }
 
+      // Check 2FA: If enabled, return TwoFactorResponse
+      if (user.is_two_factor_enabled) {
+        return {
+          require2fa: true,
+          email: user.email,
+        };
+      }
+
       // Get user's companies
-      const companies = await CompanyService.getUserCompanies(user.id);
+      let companies = await CompanyService.getUserCompanies(user.id);
+      
+      // Safeguard: If user has no companies, create a default one
+      if (!companies || companies.length === 0) {
+        logger.warn('User has no companies, creating default company', { userId: user.id, email: user.email });
+        const defaultCompanyName = companyName || `${user.full_name || user.email.split('@')[0]}'s Workspace`;
+        await CompanyService.createCompany({
+          name: defaultCompanyName,
+          userId: user.id,
+        });
+        companies = await CompanyService.getUserCompanies(user.id);
+      }
+      
       const defaultCompany = companies.length > 0 ? companies[0] : null;
 
       // Generate JWT token
@@ -175,7 +223,6 @@ export class OAuthService {
               name: defaultCompany.name,
             }
           : undefined,
-        require2fa: user.is_two_factor_enabled,
       };
     } catch (error) {
       if (error instanceof AppError) throw error;

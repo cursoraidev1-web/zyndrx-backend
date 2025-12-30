@@ -67,11 +67,13 @@ export class AuthController {
 
     const result = await OAuthService.exchangeSupabaseSession(accessToken, companyName);
 
-    if (result.require2fa) {
-      logger.info('User 2FA required for OAuth login', { email: result.user.email });
+    // Check if 2FA is required (type guard)
+    if ('require2fa' in result) {
+      logger.info('User 2FA required for OAuth login', { email: result.email });
       return ResponseHandler.success(res, result, '2FA verification required. Please enter your code.');
     }
 
+    // TypeScript now knows result is AuthResponse (not TwoFactorResponse)
     logger.info('OAuth session exchanged successfully', { userId: result.user.id, email: result.user.email });
     return ResponseHandler.success(res, result, 'OAuth login successful');
   });
