@@ -68,8 +68,8 @@ class App {
       })
     );
 
-    // Explicitly handle OPTIONS requests for all routes (additional safety)
-    this.app.options('*', cors());
+    // Note: CORS middleware above already handles OPTIONS requests
+    // No need for explicit app.options() handler in Express 5
 
     // Enhanced security headers with CSP
     this.app.use(
