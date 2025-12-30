@@ -31,7 +31,7 @@ This guide explains how to set up the Supabase Storage bucket for document uploa
 
 3. **Configure Bucket Settings**
    - **File size limit:** Set to maximum (e.g., 500MB) or based on your plan
-   - **Allowed MIME types:** Leave empty to allow all types (backend validates)
+   - **Allowed MIME types:** Leaxve empty to allow all types (backend validates)
    - **Public bucket:** ✅ Enabled (for signed URLs)
 
 4. **Click Create**
@@ -422,6 +422,7 @@ After setup:
 3. Test download functionality
 4. Monitor storage usage
 5. Set up alerts for storage limits
+
 
 
 

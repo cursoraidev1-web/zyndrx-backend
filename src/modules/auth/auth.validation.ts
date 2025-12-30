@@ -47,6 +47,14 @@ export const googleLoginSchema = z.object({
     redirect_uri: z.string().url().optional(), // For code exchange flow
   }),
 });
+
+// OAuth Session Exchange Validation (for Supabase OAuth)
+export const oauthSessionSchema = z.object({
+  body: z.object({
+    accessToken: z.string().min(1, 'Supabase access token is required'),
+    companyName: z.string().min(1).max(100, 'Company name too long').optional(),
+  }),
+});
 // Verify the code to Enable 2FA
 export const verify2FASchema = z.object({
   body: z.object({

@@ -54,7 +54,9 @@ class App {
             if (config.server.isDevelopment && origin.startsWith('http://localhost:')) {
               callback(null, true);
             } else {
-              callback(new Error('Not allowed by CORS'));
+              // Reject origin without throwing error (prevents 500 status)
+              // This will result in no CORS headers, browser will block the request
+              callback(null, false);
             }
           }
         },
@@ -65,6 +67,9 @@ class App {
         optionsSuccessStatus: 204,
       })
     );
+
+    // Explicitly handle OPTIONS requests for all routes (additional safety)
+    this.app.options('*', cors());
 
     // Enhanced security headers with CSP
     this.app.use(

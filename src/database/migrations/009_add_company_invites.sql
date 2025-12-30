@@ -64,3 +64,4 @@ CREATE POLICY "Users can view their own invite by token"
   ON company_invites FOR SELECT
   USING (true); -- Token will be validated in application logic
 
+

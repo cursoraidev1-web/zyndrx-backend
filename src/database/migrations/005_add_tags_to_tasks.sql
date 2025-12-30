@@ -10,3 +10,4 @@ CREATE INDEX IF NOT EXISTS idx_tasks_tags ON tasks USING GIN(tags);
 
 
 
+

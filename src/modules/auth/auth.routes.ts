@@ -8,6 +8,7 @@ import {
   registerSchema,
   loginSchema,
   googleLoginSchema,
+  oauthSessionSchema,
   updateProfileSchema,
   verify2FASchema,
   login2FASchema,
@@ -35,45 +36,26 @@ router.post('/register', registrationRateLimiter, validate(registerSchema), auth
 router.post('/login', validate(loginSchema), authController.login);
 
 /**
- * @route   GET /api/v1/auth/google
- * @desc    Initiate Google OAuth flow (redirects to Google)
+ * @route   POST /api/v1/auth/oauth/session
+ * @desc    Exchange Supabase OAuth session token for JWT token
+ * @desc    Called by frontend after successful OAuth login via Supabase signInWithOAuth()
  * @access  Public
- * @query   companyName (optional) - Company name for new signups
+ * @body    { accessToken: string, companyName?: string }
  */
-router.get('/google', authController.initiateGoogleAuth);
-
-/**
- * @route   GET /api/v1/auth/google/callback
- * @desc    Google OAuth callback (handles redirect from Google)
- * @access  Public
- */
-router.get('/google/callback', authController.googleCallback);
+router.post('/oauth/session', validate(oauthSessionSchema), authController.exchangeOAuthSession);
 
 /**
  * @route   POST /api/v1/auth/google
- * @desc    Login or Register with Google using accessToken (legacy/direct token)
+ * @desc    Login or Register with Google using Supabase accessToken (legacy endpoint)
+ * @desc    This endpoint now uses Supabase session exchange internally
  * @access  Public
  */
 router.post('/google', validate(googleLoginSchema), authController.googleLogin);
 
 /**
- * @route   GET /api/v1/auth/github
- * @desc    Initiate GitHub OAuth flow (redirects to GitHub)
- * @access  Public
- * @query   companyName (optional) - Company name for new signups
- */
-router.get('/github', authController.initiateGitHubAuth);
-
-/**
- * @route   GET /api/v1/auth/github/callback
- * @desc    GitHub OAuth callback (handles redirect from GitHub)
- * @access  Public
- */
-router.get('/github/callback', authController.githubCallback);
-
-/**
  * @route   POST /api/v1/auth/github
- * @desc    Login or Register with GitHub using accessToken (legacy/direct token)
+ * @desc    Login or Register with GitHub using Supabase accessToken (legacy endpoint)
+ * @desc    This endpoint now uses Supabase session exchange internally
  * @access  Public
  */
 router.post('/github', authController.githubLogin);

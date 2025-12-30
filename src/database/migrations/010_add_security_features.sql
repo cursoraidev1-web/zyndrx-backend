@@ -47,3 +47,4 @@ CREATE POLICY "Company admins can view company security events"
     )
   );
 
+
