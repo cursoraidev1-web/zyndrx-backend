@@ -14,7 +14,8 @@ import {
   login2FASchema,
   forgotPasswordSchema, 
   resetPasswordSchema,
-  createUserSchema
+  createUserSchema,
+  switchCompanySchema
 } from './auth.validation';
 
 const router = Router();
@@ -131,8 +132,9 @@ router.get('/companies', authenticate, companyController.getMyCompanies);
  * @route   POST /api/v1/auth/switch-company
  * @desc    Switch active company/workspace
  * @access  Private
+ * @body    { company_id: string }
  */
-router.post('/switch-company', authenticate, companyController.switchCompany);
+router.post('/switch-company', authenticate, validate(switchCompanySchema), companyController.switchCompany);
 
 /**
  * @route   POST /api/v1/auth/users/:companyId

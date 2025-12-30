@@ -89,6 +89,13 @@ export const resetPasswordSchema = z.object({
   }),
 });
 
+// SWITCH COMPANY VALIDATION
+export const switchCompanySchema = z.object({
+  body: z.object({
+    company_id: z.string().uuid('Invalid company ID format'),
+  }),
+});
+
 // ADMIN: CREATE USER VALIDATION
 export const createUserSchema = z.object({
   body: z.object({

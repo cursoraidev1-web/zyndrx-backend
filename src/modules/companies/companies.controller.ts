@@ -125,15 +125,32 @@ export class CompanyController {
     const { AuthService } = await import('../auth/auth.service');
     const authService = new AuthService();
     const user = await authService.getCurrentUser(userId);
+    const token = await authService.generateTokenForCompany(userId, company_id);
     
-    // Generate new token (we need to access the private method, so we'll do it differently)
-    // For now, return the company info and let frontend handle token refresh
-    // Or we can add a public method to generate token
+    // Get all user's companies for response
+    const companies = await CompanyService.getUserCompanies(userId);
     
     return ResponseHandler.success(res, {
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+      },
       company: result.company,
+      companyId: result.company.id,
       userRole: result.userRole,
-      // Note: Frontend should call /auth/me or re-login to get new token with companyId
+      companies: companies.map((c) => ({
+        id: c.id,
+        name: c.name,
+        role: c.role,
+      })),
+      currentCompany: {
+        id: result.company.id,
+        name: result.company.name,
+      },
     }, 'Company switched successfully');
   });
 }

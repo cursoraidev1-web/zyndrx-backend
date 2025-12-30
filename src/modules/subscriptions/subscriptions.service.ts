@@ -260,9 +260,29 @@ export class SubscriptionService {
     resourceType: 'project' | 'task' | 'team_member' | 'document'
   ): Promise<{ allowed: boolean; message?: string; currentUsage?: number; maxLimit?: number }> {
     try {
-      const subscription = await this.getCompanySubscription(companyId);
+      let subscription = await this.getCompanySubscription(companyId);
+      
+      // If subscription doesn't exist, create a default one (free plan with trial)
       if (!subscription) {
-        throw new AppError('Subscription not found', 404);
+        logger.warn('Subscription not found for company, creating default subscription', { companyId });
+        try {
+          await this.createDefaultSubscription(companyId);
+          // Fetch the newly created subscription
+          subscription = await this.getCompanySubscription(companyId);
+          if (!subscription) {
+            logger.error('Failed to fetch newly created subscription', { companyId });
+            return {
+              allowed: false,
+              message: 'Unable to create task. Please contact your administrator.',
+            };
+          }
+        } catch (createError) {
+          logger.error('Failed to create default subscription', { companyId, error: createError });
+          return {
+            allowed: false,
+            message: 'Unable to create task. Please contact your administrator.',
+          };
+        }
       }
 
       // Check if trial expired

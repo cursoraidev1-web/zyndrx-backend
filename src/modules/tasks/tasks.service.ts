@@ -85,9 +85,17 @@ export class TaskService {
       }
 
       // Check plan limits
-      const limitCheck = await SubscriptionService.checkLimit(companyId, 'task');
-      if (!limitCheck.allowed) {
-        throw new AppError(limitCheck.message || 'Plan limit reached', 403);
+      try {
+        const limitCheck = await SubscriptionService.checkLimit(companyId, 'task');
+        if (!limitCheck.allowed) {
+          throw new AppError(limitCheck.message || 'Plan limit reached. Please upgrade your plan.', 403);
+        }
+      } catch (limitError) {
+        if (limitError instanceof AppError) {
+          throw limitError;
+        }
+        logger.error('Failed to check task limit', { error: limitError, companyId });
+        throw new AppError('Unable to create task. Please contact your administrator.', 500);
       }
 
       // Insert task with company_id

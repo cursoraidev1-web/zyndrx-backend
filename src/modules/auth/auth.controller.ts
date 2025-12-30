@@ -141,7 +141,28 @@ export class AuthController {
       return ResponseHandler.unauthorized(res);
     }
     const user = await authService.getCurrentUser(req.user.id);
-    return ResponseHandler.success(res, user);
+    
+    // Include company information for workspace dropdown
+    const { CompanyService } = await import('../companies/companies.service');
+    const companies = await CompanyService.getUserCompanies(req.user.id);
+    const currentCompanyId = req.user.companyId || req.companyId;
+    const currentCompany = currentCompanyId 
+      ? companies.find(c => c.id === currentCompanyId)
+      : companies[0];
+    
+    return ResponseHandler.success(res, {
+      ...user,
+      companyId: currentCompany?.id,
+      companies: companies.map((c) => ({
+        id: c.id,
+        name: c.name,
+        role: c.role,
+      })),
+      currentCompany: currentCompany ? {
+        id: currentCompany.id,
+        name: currentCompany.name,
+      } : undefined,
+    });
   });
 
   // PUT /api/v1/auth/profile

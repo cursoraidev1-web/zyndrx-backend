@@ -704,6 +704,15 @@ export class AuthService {
     const secret = String(config.jwt.secret);
     return jwt.sign(payload, secret, { expiresIn: config.jwt.expiresIn as any });
   }
+
+  /**
+   * Generate a new JWT token for a user with a specific company context
+   * Used when switching companies/workspaces
+   */
+  async generateTokenForCompany(userId: string, companyId: string): Promise<string> {
+    const user = await this.getCurrentUser(userId);
+    return this.generateToken(userId, user.email, user.role, companyId);
+  }
   async loginWithGitHub(accessToken: string, companyName?: string): Promise<AuthResponse | TwoFactorResponse> {
     // Exact same logic as Google, just verifying a GitHub token
     // Supabase handles the provider difference internally if you use getUser()
