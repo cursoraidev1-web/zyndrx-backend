@@ -247,7 +247,7 @@ export class AuthService {
   // ===========================================================================
   // PRIVATE HELPERS
   // ===========================================================================
-private async finalizeLogin(user: any, specificCompanyId?: string): Promise<AuthResponse> {
+  private async finalizeLogin(user: any, specificCompanyId?: string): Promise<AuthResponse> {
     const companies = await CompanyService.getUserCompanies(user.id);
     
     // Force type to any[]
@@ -290,6 +290,7 @@ private async finalizeLogin(user: any, specificCompanyId?: string): Promise<Auth
       } : undefined,
     };
   }
+  
   private generateToken(userId: string, email: string, companyId?: string, companyRole?: CompanyRole): string {
     const payload: any = { 
         sub: userId, 
@@ -332,7 +333,7 @@ private async finalizeLogin(user: any, specificCompanyId?: string): Promise<Auth
         .eq('user_id', userId)
         .single();
     
-    return member ? (member.role as CompanyRole) : null;
+        return member ? ((member as any).role as CompanyRole) : null;
   }
 
   // ===========================================================================
@@ -404,7 +405,51 @@ private async finalizeLogin(user: any, specificCompanyId?: string): Promise<Auth
   }
 
   async loginWithGoogle(accessToken: string, companyName?: string): Promise<AuthResponse | TwoFactorResponse> {
-      const result = await OAuthService.exchangeSupabaseSession(accessToken, companyName);
-      return result; 
-  }
+    // 1. Get the user's email from the Access Token first
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
+    
+    if (error || !user || !user.email) {
+      throw new AppError('Invalid OAuth token', 401);
+    }
+
+    // 2. Check if this user ALREADY exists in our database
+    const { data: existingUser } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', user.email)
+      .single();
+
+    // ✅ SCENARIO 1: EXISTING USER
+    // If they exist, just log them in. Do NOT create a company name.
+    if (existingUser) {
+       return await OAuthService.exchangeSupabaseSession(accessToken);
+    }
+
+    // 3. Check if they have a PENDING INVITE
+    // We look up their email in the invitations table
+    const { data: invitations } = await supabaseAdmin
+      .from('company_invitations') // Make sure this matches your table name
+      .select('id')
+      .eq('email', user.email)
+      .eq('status', 'pending');
+
+    // ✅ SCENARIO 2: INVITED USER
+    // If they have an invite, we let them pass WITHOUT a company name.
+    // The OAuthService (or Register logic) must detect the invite by email.
+    if (invitations && invitations.length > 0) {
+       logger.info('User has pending invites, skipping company creation', { email: user.email });
+       return await OAuthService.exchangeSupabaseSession(accessToken);
+    }
+
+    // ✅ SCENARIO 3: BRAND NEW USER (No Invite)
+    // They are new AND have no invites. They MUST have a workspace.
+    // If they didn't provide one, we auto-generate it.
+    if (!companyName) {
+       const name = user.user_metadata?.full_name || user.email.split('@')[0];
+       companyName = `${name}'s Workspace`;
+       logger.info('Auto-generated company name for new user', { companyName });
+    }
+
+    return await OAuthService.exchangeSupabaseSession(accessToken, companyName);
+}
 }
