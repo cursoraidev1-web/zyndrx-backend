@@ -66,57 +66,53 @@ export class TaskService {
 
   static async createTask(data: any, userId: string, companyId: string) {
     try {
-      // Verify project exists and belongs to company
-      const { data: task, error } = await supabaseAdmin
-  .from('tasks')
-  .insert({
-    title: data.title,
-    description: data.description,
-    status: data.status,
-    priority: data.priority,
-    start_date: data.startDate,
-    due_date: data.dueDate,
-    
-    // 👇 Correct Spelling
-    assignee_id: data.assigneeId, 
-    
-    project_id: data.projectId,
-    company_id: companyId
-  })
-  .select()
-  .single();
+      // 1. Verify project exists FIRST
+      const { data: project, error: projectError } = await db
+        .from('projects')
+        .select('company_id')
+        .eq('id', data.projectId)
+        .single();
+
       if (projectError || !project) {
-        logger.error('Project not found', { projectId: data.project_id, error: projectError });
+        logger.error('Project not found', { projectId: data.projectId, error: projectError });
         throw new AppError('Project not found', 404);
       }
 
-      // Ensure company_id matches
+      // 2. Ensure company_id matches
       const projectCompanyId = (project as any).company_id;
       if (projectCompanyId !== companyId) {
         throw new AppError('Project does not belong to your company', 403);
       }
 
-      // Check plan limits
+      // 3. Check plan limits
       try {
         const limitCheck = await SubscriptionService.checkLimit(companyId, 'task');
         if (!limitCheck.allowed) {
           throw new AppError(limitCheck.message || 'Plan limit reached. Please upgrade your plan.', 403);
         }
       } catch (limitError) {
-        if (limitError instanceof AppError) {
-          throw limitError;
-        }
+        if (limitError instanceof AppError) throw limitError;
         logger.error('Failed to check task limit', { error: limitError, companyId });
         throw new AppError('Unable to create task. Please contact your administrator.', 500);
       }
 
-      // Insert task with company_id
+      // 4. Insert Task (The Logic Fix)
       const { data: task, error } = await (db.from('tasks') as any)
         .insert({
-          ...data,
-          created_by: userId,
-          company_id: companyId, // Ensure company_id is set
-          status: 'todo'
+          title: data.title,
+          description: data.description,
+          status: data.status || 'todo',
+          priority: data.priority,
+          start_date: data.startDate,
+          due_date: data.dueDate,
+          
+          // ✅ Correct Spelling here:
+          assignee_id: data.assigneeId, // DB column: assignee_id, Input: assigneeId
+          assigned_to: data.assigneeId, // (Optional) Just in case your DB uses assigned_to instead. Keeping both is safer if unsure.
+          
+          project_id: data.projectId,
+          company_id: companyId,
+          created_by: userId
         })
         .select('*')
         .single();
