@@ -244,9 +244,9 @@ export class PrdService {
   }
 
   // 5. Create PRD Version
-  static async createPRDVersion(prdId: string, data: { title: string; content: Json; created_by: string; changes_summary?: string }) {
+  static async createPRDVersion(prdId: string, companyId: string, data: { title: string; content: Json; created_by: string; changes_summary?: string }) {
     // Get current PRD to get version number
-    const currentPRD = await this.getPRDById(prdId);
+    const currentPRD = await this.getPRDById(prdId, companyId);
     const newVersion = (currentPRD as any).version + 1;
 
     // Create version record

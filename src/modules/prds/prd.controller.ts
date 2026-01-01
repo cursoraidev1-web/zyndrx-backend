@@ -131,7 +131,7 @@ export const createPrdVersion = async (req: Request, res: Response, next: NextFu
     // Verify PRD exists and belongs to company
     await PrdService.getPRDById(id, companyId);
 
-    const version = await PrdService.createPRDVersion(id, {
+    const version = await PrdService.createPRDVersion(id, companyId, {
       title,
       content,
       created_by: userId,
