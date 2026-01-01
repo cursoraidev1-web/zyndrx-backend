@@ -1,4 +1,3 @@
-import axios from 'axios';
 import logger from '../utils/logger';
 
 export interface PaystackInitializeResponse {
@@ -65,24 +64,30 @@ export class PaystackService {
         throw new Error('Paystack secret key is not configured');
       }
 
-      const response = await axios.post(
+      const response = await fetch(
         `${this.PAYSTACK_BASE_URL}/transaction/initialize`,
         {
-          email: data.email,
-          amount: data.amount, // Amount in kobo
-          reference: data.reference,
-          metadata: data.metadata,
-          callback_url: data.callback_url,
-        },
-        {
+          method: 'POST',
           headers: {
             Authorization: `Bearer ${this.PAYSTACK_SECRET_KEY}`,
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            email: data.email,
+            amount: data.amount, // Amount in kobo
+            reference: data.reference,
+            metadata: data.metadata,
+            callback_url: data.callback_url,
+          }),
         }
       );
 
-      return response.data;
+      const responseData = await response.json() as PaystackInitializeResponse;
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to initialize Paystack payment');
+      }
+
+      return responseData;
     } catch (error: any) {
       logger.error('Paystack initialization error', {
         error: error.message,
