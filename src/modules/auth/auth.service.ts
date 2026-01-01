@@ -246,6 +246,15 @@ export class AuthService {
         companyId: company.id 
       });
 
+      // Send welcome email
+      try {
+        const { EmailService } = await import('../../utils/email.service');
+        await EmailService.sendWelcomeEmail(user.email, user.full_name, company.name);
+      } catch (emailError) {
+        logger.error('Failed to send welcome email', { error: emailError, email: user.email });
+        // Don't fail registration if email fails
+      }
+
       return response;
     } catch (error) {
       if (error instanceof AppError) {

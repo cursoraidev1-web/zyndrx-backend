@@ -58,6 +58,29 @@ export class HandoffService {
         throw new AppError(`Failed to create handoff: ${error.message}`, 500);
       }
 
+      // Send handoff creation email to the recipient
+      try {
+        const handoffWithRelations = handoff as any;
+        const toUser = handoffWithRelations.to_user;
+        const fromUser = handoffWithRelations.from_user;
+        const project = handoffWithRelations.project;
+        
+        if (toUser?.email && fromUser?.full_name && project?.name) {
+          const { EmailService } = await import('../../utils/email.service');
+          await EmailService.sendHandoffCreatedEmail(
+            toUser.email,
+            toUser.full_name,
+            handoff.title,
+            handoff.id,
+            fromUser.full_name,
+            project.name
+          );
+        }
+      } catch (emailError) {
+        logger.error('Failed to send handoff creation email', { error: emailError, handoffId: handoff.id });
+        // Don't fail handoff creation if email fails
+      }
+
       return handoff;
     } catch (error) {
       if (error instanceof AppError) throw error;

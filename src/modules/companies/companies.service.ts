@@ -169,6 +169,18 @@ export class CompanyService {
         });
       }
 
+      // Send company creation email
+      try {
+        const { data: userData } = await (db.from('users') as any).select('email, full_name').eq('id', data.userId).single();
+        if (userData && userData.email && userData.full_name) {
+          const { EmailService } = await import('../../utils/email.service');
+          await EmailService.sendCompanyCreatedEmail(userData.email, userData.full_name, company.name);
+        }
+      } catch (emailError) {
+        logger.error('Failed to send company creation email', { error: emailError, companyId: company.id });
+        // Don't fail company creation if email fails
+      }
+
       return company;
     } catch (error) {
       if (error instanceof AppError) throw error;

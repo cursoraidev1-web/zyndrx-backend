@@ -39,6 +39,54 @@ export class CommentService {
       throw new AppError(`Failed to create comment: ${error.message}`, 500);
     }
 
+    // Send comment creation email to resource owner
+    try {
+      const commentWithUser = comment as any;
+      const commenter = commentWithUser.users;
+      
+      // Get resource owner based on resource type
+      let resourceOwnerEmail: string | null = null;
+      let resourceOwnerName: string | null = null;
+      let resourceName: string = '';
+      
+      if (data.resource_type === 'task') {
+        const { data: taskData } = await db.from('tasks').select('title, created_by').eq('id', data.resource_id).single();
+        if (taskData) {
+          resourceName = taskData.title;
+          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', taskData.created_by).single();
+          if (ownerData && ownerData.email !== commenter.email) {
+            resourceOwnerEmail = ownerData.email;
+            resourceOwnerName = ownerData.full_name;
+          }
+        }
+      } else if (data.resource_type === 'prd') {
+        const { data: prdData } = await db.from('prds').select('title, created_by').eq('id', data.resource_id).single();
+        if (prdData) {
+          resourceName = prdData.title;
+          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', prdData.created_by).single();
+          if (ownerData && ownerData.email !== commenter.email) {
+            resourceOwnerEmail = ownerData.email;
+            resourceOwnerName = ownerData.full_name;
+          }
+        }
+      }
+
+      if (resourceOwnerEmail && resourceOwnerName && commenter) {
+        const { EmailService } = await import('../../utils/email.service');
+        await EmailService.sendCommentCreatedEmail(
+          resourceOwnerEmail,
+          resourceOwnerName,
+          commenter.full_name,
+          data.resource_type,
+          resourceName,
+          data.resource_id
+        );
+      }
+    } catch (emailError) {
+      logger.error('Failed to send comment creation email', { error: emailError, commentId: comment.id });
+      // Don't fail comment creation if email fails
+    }
+
     return comment;
   }
 

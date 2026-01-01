@@ -169,6 +169,30 @@ export class TaskService {
         throw new AppError(`Failed to create task: ${error.message}`, 500);
       }
 
+      // Send task creation email to assignee if assigned
+      if (task && task.assigned_to) {
+        try {
+          const { data: assigneeData } = await db.from('users').select('email, full_name').eq('id', task.assigned_to).single();
+          const { data: creatorData } = await db.from('users').select('full_name').eq('id', userId).single();
+          const { data: projectData } = await db.from('projects').select('name').eq('id', task.project_id).single();
+          
+          if (assigneeData && creatorData && projectData) {
+            const { EmailService } = await import('../../utils/email.service');
+            await EmailService.sendTaskCreatedEmail(
+              assigneeData.email,
+              assigneeData.full_name,
+              task.title,
+              task.id,
+              projectData.name,
+              creatorData.full_name
+            );
+          }
+        } catch (emailError) {
+          logger.error('Failed to send task creation email', { error: emailError, taskId: task?.id });
+          // Don't fail task creation if email fails
+        }
+      }
+
       return task;
 
     } catch (error) {

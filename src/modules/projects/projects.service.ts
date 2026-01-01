@@ -40,6 +40,18 @@ export class ProjectService {
         throw new AppError('Failed to create project', 500);
       }
 
+      // Send project creation email to the owner
+      try {
+        const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', data.owner_id).single();
+        if (ownerData) {
+          const { EmailService } = await import('../../utils/email.service');
+          await EmailService.sendProjectCreatedEmail(ownerData.email, ownerData.full_name, project.name, project.id);
+        }
+      } catch (emailError) {
+        logger.error('Failed to send project creation email', { error: emailError, projectId: project.id });
+        // Don't fail project creation if email fails
+      }
+
       return project;
     } catch (error) {
       if (error instanceof AppError) throw error;

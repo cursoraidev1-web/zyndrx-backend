@@ -44,6 +44,27 @@ export class PrdService {
       logger.error('Failed to create PRD', { error: error.message, data });
       throw new AppError(`Failed to create PRD: ${error.message}`, 500);
     }
+
+    // Send PRD creation email to the creator
+    try {
+      const { data: creatorData } = await db.from('users').select('email, full_name').eq('id', data.created_by).single();
+      const { data: projectData } = await db.from('projects').select('name').eq('id', data.project_id).single();
+      
+      if (creatorData && projectData) {
+        const { EmailService } = await import('../../utils/email.service');
+        await EmailService.sendPRDCreatedEmail(
+          creatorData.email,
+          creatorData.full_name,
+          prd.title,
+          prd.id,
+          projectData.name
+        );
+      }
+    } catch (emailError) {
+      logger.error('Failed to send PRD creation email', { error: emailError, prdId: prd.id });
+      // Don't fail PRD creation if email fails
+    }
+
     return prd;
   }
 

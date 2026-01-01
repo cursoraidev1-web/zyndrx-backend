@@ -250,13 +250,41 @@ CREATE POLICY "Project owners can delete projects" ON projects FOR DELETE USING 
 -- Anyone authenticated can create projects
 CREATE POLICY "Authenticated users can create projects" ON projects FOR INSERT WITH CHECK (auth.uid() = owner_id);
  
--- Project members can view tasks
-CREATE POLICY "Project members can view tasks" ON tasks FOR SELECT
-  USING (EXISTS (SELECT 1 FROM project_members WHERE project_id = tasks.project_id AND user_id = auth.uid()));
- 
--- Project members can create tasks
-CREATE POLICY "Project members can create tasks" ON tasks FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM project_members WHERE project_id = tasks.project_id AND user_id = auth.uid()));
+-- Project members or owners can view tasks
+CREATE POLICY "Project members or owners can view tasks" ON tasks FOR SELECT
+  USING (
+    -- Allow if user is the project owner
+    EXISTS (
+      SELECT 1 FROM projects 
+      WHERE projects.id = tasks.project_id 
+      AND projects.owner_id = auth.uid()
+    )
+    OR
+    -- Allow if user is a project member
+    EXISTS (
+      SELECT 1 FROM project_members 
+      WHERE project_members.project_id = tasks.project_id 
+      AND project_members.user_id = auth.uid()
+    )
+  );
+
+-- Project members or owners can create tasks
+CREATE POLICY "Project members or owners can create tasks" ON tasks FOR INSERT
+  WITH CHECK (
+    -- Allow if user is the project owner
+    EXISTS (
+      SELECT 1 FROM projects 
+      WHERE projects.id = tasks.project_id 
+      AND projects.owner_id = auth.uid()
+    )
+    OR
+    -- Allow if user is a project member
+    EXISTS (
+      SELECT 1 FROM project_members 
+      WHERE project_members.project_id = tasks.project_id 
+      AND project_members.user_id = auth.uid()
+    )
+  );
  
 -- Users can view their notifications
 CREATE POLICY "Users can view their notifications" ON notifications FOR SELECT USING (user_id = auth.uid());
