@@ -1,7 +1,11 @@
 import App from './app';
 import { config } from './config';
 import logger from './utils/logger';
+import { PushService } from './modules/push/push.service';
  
+// Initialize push notifications
+PushService.initialize();
+
 // Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
   logger.error('Uncaught Exception', {

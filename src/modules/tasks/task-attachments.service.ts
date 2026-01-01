@@ -38,7 +38,7 @@ export class TaskAttachmentService {
   ) {
     try {
       // Verify task exists and user has access
-      const task = await TaskService.getTaskById(taskId);
+      const task = await TaskService.getTaskById(taskId, companyId);
       if (!task) {
         throw new AppError('Task not found', 404);
       }

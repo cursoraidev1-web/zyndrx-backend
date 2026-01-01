@@ -37,6 +37,7 @@ export const updateProfileSchema = z.object({
   body: z.object({
     fullName: z.string().min(2).optional(),
     avatarUrl: z.string().url().optional(),
+    themePreference: z.enum(['light', 'dark', 'auto']).optional(),
   }),
 });
 
@@ -86,6 +87,21 @@ export const resetPasswordSchema = z.object({
       .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Password must contain at least one special character')
       .refine((pwd) => !pwd.includes(' '), 'Password cannot contain spaces'),
     accessToken: z.string().min(1), // Supabase sends this via email link
+  }),
+});
+
+// CHANGE PASSWORD VALIDATION
+export const changePasswordSchema = z.object({
+  body: z.object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(12, 'Password must be at least 12 characters')
+      .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+      .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+      .regex(/[0-9]/, 'Password must contain at least one number')
+      .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Password must contain at least one special character')
+      .refine((pwd) => !pwd.includes(' '), 'Password cannot contain spaces'),
   }),
 });
 

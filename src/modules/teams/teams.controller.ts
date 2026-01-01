@@ -4,14 +4,17 @@ import { ResponseHandler } from '../../utils/response';
 
 export class TeamController {
   
-  // POST /api/v1/teams/:project_id/invite
+  // POST /api/v1/teams/invite
   public inviteMember = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { project_id } = req.params;
-      const { email, role } = req.body;
+      const { projectId, email, role } = req.body;
       const userId = req.user!.id;
 
-      const result = await TeamService.inviteUser(project_id, email, role, userId);
+      if (!projectId) {
+        return ResponseHandler.error(res, 'Project ID is required', 400);
+      }
+
+      const result = await TeamService.inviteUser(projectId, email, role || 'developer', userId);
       return ResponseHandler.created(res, result, 'Invite sent successfully (Check server console for link)');
     } catch (error) {
       next(error);

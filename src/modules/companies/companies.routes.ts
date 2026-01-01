@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { CompanyController } from './companies.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { validate } from '../../middleware/validation.middleware';
+import { createCompanySchema } from './companies.validation';
 
 const router = Router();
 const companyController = new CompanyController();
@@ -20,7 +22,7 @@ router.get('/:id', companyController.getCompany);
  * @desc    Create new company
  * @access  Private
  */
-router.post('/', companyController.createCompany);
+router.post('/', validate(createCompanySchema), companyController.createCompany);
 
 /**
  * @route   GET /api/v1/companies/:id/members

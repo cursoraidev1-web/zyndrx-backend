@@ -173,16 +173,45 @@ export class AuthController {
       return ResponseHandler.unauthorized(res);
     }
 
-    const { fullName, avatarUrl } = req.body;
+    const { fullName, avatarUrl, themePreference } = req.body;
 
     const user = await authService.updateProfile(req.user.id, {
       fullName,
       avatarUrl,
+      themePreference,
     });
 
     logger.info('User profile updated', { userId: req.user.id });
 
     return ResponseHandler.success(res, user, 'Profile updated successfully');
+  });
+
+  // POST /api/v1/auth/change-password
+  changePassword = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      return ResponseHandler.unauthorized(res);
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const ipAddress = req.ip || req.socket.remoteAddress || undefined;
+    const userAgent = req.get('user-agent') || undefined;
+
+    await authService.changePassword(req.user.id, currentPassword, newPassword, ipAddress, userAgent);
+
+    logger.info('User password changed', { userId: req.user.id });
+
+    return ResponseHandler.success(res, { success: true }, 'Password changed successfully');
+  });
+
+  // GET /api/v1/auth/sessions
+  getActiveSessions = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      return ResponseHandler.unauthorized(res);
+    }
+
+    const sessions = await authService.getActiveSessions(req.user.id);
+
+    return ResponseHandler.success(res, sessions, 'Active sessions retrieved successfully');
   });
 
   // POST /api/v1/auth/logout

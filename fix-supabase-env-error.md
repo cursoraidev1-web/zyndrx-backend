@@ -182,3 +182,5 @@ console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? 
 
 This will tell you exactly which one is missing!
 
+
+

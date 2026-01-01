@@ -42,10 +42,15 @@ const envSchema = z.object({
   // Email
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().default('noreply@zyndrx.com'),
- 
+
+  // Push Notifications (VAPID keys)
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_EMAIL: z.string().email().optional(),
+
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
- 
+
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.string().default('900000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().default('100'),
@@ -106,6 +111,11 @@ export const config = {
   email: {
     resendApiKey: env.RESEND_API_KEY,
     fromAddress: env.EMAIL_FROM,
+  },
+  push: {
+    vapidPublicKey: env.VAPID_PUBLIC_KEY,
+    vapidPrivateKey: env.VAPID_PRIVATE_KEY,
+    vapidEmail: env.VAPID_EMAIL,
   },
   logging: {
     level: env.LOG_LEVEL,

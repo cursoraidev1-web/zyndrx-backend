@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import supabase from '../../config/supabase';
 import { Database } from '../../types/database.types';
 import logger from '../../utils/logger';
+import { PushService } from '../push/push.service';
 
 const db = supabase as SupabaseClient<Database>;
 
@@ -27,6 +28,21 @@ export class NotificationService {
       });
     } else {
       logger.debug('Notification created', { userId, type, title });
+      
+      // Send push notification if user has push subscriptions enabled
+      // This is done asynchronously to not block the notification creation
+      PushService.sendNotification(userId, title, message, {
+        icon: '/logo192.png',
+        badge: '/logo192.png',
+        tag: type,
+        data: { link, type },
+        requireInteraction: false,
+      }).catch(err => {
+        logger.warn('Failed to send push notification', {
+          userId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     }
   }
 

@@ -47,27 +47,60 @@ export class PrdService {
     return prd;
   }
 
-  // 2. Get PRD by ID (Reads usually work fine with types)
-  static async getPRDById(id: string) {
+  /**
+   * Get PRD by ID with company context validation
+   * Prevents IDOR vulnerability by ensuring PRD belongs to user's company
+   * 
+   * @param id - UUID of the PRD
+   * @param companyId - UUID of the company (required for security)
+   * @returns PRD object with related project and user data
+   * @throws AppError if PRD not found or doesn't belong to company
+   */
+  static async getPRDById(id: string, companyId: string) {
     const { data, error } = await db
       .from('prds')
       .select(`
         *,
-        projects ( name ),
+        projects!inner ( name, company_id ),
         users!prds_created_by_fkey ( full_name )
       `)
       .eq('id', id)
+      .eq('projects.company_id', companyId) // CRITICAL: Prevent IDOR by validating company_id
       .single();
 
     if (error) {
-      logger.error('Failed to fetch PRD', { error: error.message, id });
-      throw new AppError(`Failed to fetch PRD: ${error.message}`, 500);
+      if (error.code === 'PGRST116') {
+        throw new AppError('PRD not found or access denied', 404);
+      }
+      logger.error('Failed to fetch PRD', { error: error.message, id, companyId });
+      throw new AppError('Failed to fetch PRD', 500);
     }
     return data;
   }
 
-  // 2b. Get PRDs by Project ID
-  static async getPRDsByProject(projectId: string) {
+  /**
+   * Get PRDs by project ID with company context validation
+   * Prevents IDOR vulnerability by ensuring project belongs to user's company
+   * 
+   * @param projectId - UUID of the project
+   * @param companyId - UUID of the company (required for security)
+   * @returns Array of PRD objects
+   * @throws AppError if project not found or doesn't belong to company
+   */
+  static async getPRDsByProject(projectId: string, companyId: string) {
+    // Verify project belongs to company first
+    const { data: project, error: projectError } = await db
+      .from('projects')
+      .select('id, company_id')
+      .eq('id', projectId)
+      .eq('company_id', companyId)
+      .single();
+
+    if (projectError || !project) {
+      logger.error('Project not found or access denied', { projectId, companyId, error: projectError });
+      throw new AppError('Project not found or access denied', 404);
+    }
+
     const { data, error } = await db
       .from('prds')
       .select(`
@@ -76,17 +109,25 @@ export class PrdService {
         users!prds_created_by_fkey ( full_name )
       `)
       .eq('project_id', projectId)
+      .eq('company_id', companyId) // Additional safety check
       .order('created_at', { ascending: false });
 
     if (error) {
-      logger.error('Failed to fetch PRDs', { error: error.message, projectId });
-      throw new AppError(`Failed to fetch PRDs: ${error.message}`, 500);
+      logger.error('Failed to fetch PRDs', { error: error.message, projectId, companyId });
+      throw new AppError('Failed to fetch PRDs', 500);
     }
     return data || [];
   }
 
-  // 2c. Get all PRDs (for listing)
-  static async getAllPRDs(userId?: string) {
+  /**
+   * Get all PRDs for a company (optionally filtered by user)
+   * Requires company context to prevent IDOR vulnerabilities
+   * 
+   * @param userId - Optional UUID of user to filter by creator
+   * @param companyId - UUID of the company (required for security)
+   * @returns Array of PRD objects
+   */
+  static async getAllPRDs(userId?: string, companyId?: string) {
     let query = db
       .from('prds')
       .select(`
@@ -96,6 +137,11 @@ export class PrdService {
       `)
       .order('created_at', { ascending: false });
 
+    // CRITICAL: Filter by company_id if provided
+    if (companyId) {
+      query = query.eq('company_id', companyId);
+    }
+
     // If userId provided, filter by creator
     if (userId) {
       query = query.eq('created_by', userId);
@@ -104,14 +150,26 @@ export class PrdService {
     const { data, error } = await query;
 
     if (error) {
-      logger.error('Failed to fetch PRDs', { error: error.message, userId });
-      throw new AppError(`Failed to fetch PRDs: ${error.message}`, 500);
+      logger.error('Failed to fetch PRDs', { error: error.message, userId, companyId });
+      throw new AppError('Failed to fetch PRDs', 500);
     }
     return data || [];
   }
 
-  // 2d. Update PRD content
-  static async updatePRD(id: string, updates: { title?: string; content?: Json }) {
+  /**
+   * Update PRD content with company context validation
+   * Prevents IDOR vulnerability by ensuring PRD belongs to user's company
+   * 
+   * @param id - UUID of the PRD
+   * @param updates - Partial PRD object with fields to update
+   * @param companyId - UUID of the company (required for security)
+   * @returns Updated PRD object
+   * @throws AppError if PRD not found or doesn't belong to company
+   */
+  static async updatePRD(id: string, updates: { title?: string; content?: Json }, companyId: string) {
+    // First verify PRD exists and belongs to company
+    await this.getPRDById(id, companyId);
+    
     const updatePayload: any = {
       ...updates,
       updated_at: new Date().toISOString(),
@@ -120,12 +178,16 @@ export class PrdService {
     const { data: prd, error } = await (db.from('prds') as any)
       .update(updatePayload)
       .eq('id', id)
+      .eq('company_id', companyId) // CRITICAL: Prevent IDOR by validating company_id
       .select()
       .single();
 
     if (error) {
-      logger.error('Failed to update PRD', { error: error.message, id, updates });
-      throw new AppError(`Failed to update PRD: ${error.message}`, 500);
+      if (error.code === 'PGRST116') {
+        throw new AppError('PRD not found or access denied', 404);
+      }
+      logger.error('Failed to update PRD', { error: error.message, id, companyId, updates });
+      throw new AppError('Failed to update PRD', 500);
     }
     return prd;
   }
@@ -158,22 +220,33 @@ export class PrdService {
     return prd;
   }
 
-  // 4. Delete PRD
-  static async deletePRD(id: string) {
+  /**
+   * Delete PRD with company context validation
+   * Prevents IDOR vulnerability by ensuring PRD belongs to user's company
+   * 
+   * @param id - UUID of the PRD
+   * @param companyId - UUID of the company (required for security)
+   * @throws AppError if PRD not found or doesn't belong to company
+   */
+  static async deletePRD(id: string, companyId: string) {
+    // First verify PRD exists and belongs to company
+    await this.getPRDById(id, companyId);
+    
     const { error } = await (db.from('prds') as any)
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('company_id', companyId); // CRITICAL: Prevent IDOR by validating company_id
 
     if (error) {
-      logger.error('Failed to delete PRD', { error: error.message, id });
-      throw new AppError(`Failed to delete PRD: ${error.message}`, 500);
+      logger.error('Failed to delete PRD', { error: error.message, id, companyId });
+      throw new AppError('Failed to delete PRD', 500);
     }
   }
 
   // 5. Create PRD Version
-  static async createPRDVersion(prdId: string, data: { title: string; content: Json; created_by: string; changes_summary?: string }) {
+  static async createPRDVersion(prdId: string, companyId: string, data: { title: string; content: Json; created_by: string; changes_summary?: string }) {
     // Get current PRD to get version number
-    const currentPRD = await this.getPRDById(prdId);
+    const currentPRD = await this.getPRDById(prdId, companyId);
     const newVersion = (currentPRD as any).version + 1;
 
     // Create version record

@@ -9,6 +9,7 @@ const db = supabaseAdmin as SupabaseClient<Database>;
 
 export interface CreateCompanyData {
   name: string;
+  description?: string;
   userId: string;
 }
 
@@ -82,22 +83,37 @@ export class CompanyService {
             slug = await this.generateUniqueSlug(data.name, true);
             continue;
           } else {
-            // Provide user-friendly error messages
+            // Provide user-friendly error messages with better error detection
             let userMessage = 'Failed to create company. Please try again.';
+            
+            // Log the full error for debugging
+            logger.error('Company creation database error', {
+              error: companyError,
+              code: companyError.code,
+              message: companyError.message,
+              details: companyError.details,
+              hint: companyError.hint,
+              companyName: data.name,
+              slug: slug,
+              userId: data.userId
+            });
             
             if (companyError.code === '23505') {
               // Generic unique constraint violation
               userMessage = 'A company with this name or identifier already exists. Please choose a different name.';
+            } else if (companyError.code === '23503') {
+              // Foreign key constraint violation
+              userMessage = 'Invalid user reference. Please ensure you are logged in and try again.';
+            } else if (companyError.code === '23502') {
+              // Not null constraint violation
+              userMessage = 'Company name is required. Please provide a valid company name.';
             } else if (companyError.message?.includes('null') || companyError.message?.includes('NOT NULL')) {
               userMessage = 'Company name is required. Please provide a valid company name.';
+            } else if (companyError.message?.includes('duplicate') || companyError.message?.includes('unique')) {
+              userMessage = 'A company with this name already exists. Please choose a different name.';
             } else if (companyError.message) {
-              // Log technical error but show user-friendly message
-              logger.error('Company creation database error', {
-                error: companyError,
-                code: companyError.code,
-                message: companyError.message,
-                companyName: data.name
-              });
+              // Include more context in the error message if available
+              userMessage = `Failed to create company: ${companyError.message}`;
             }
             
             throw new AppError(userMessage, 500);

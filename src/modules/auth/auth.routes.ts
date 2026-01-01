@@ -14,6 +14,7 @@ import {
   login2FASchema,
   forgotPasswordSchema, 
   resetPasswordSchema,
+  changePasswordSchema,
   createUserSchema,
   switchCompanySchema
 } from './auth.validation';
@@ -88,6 +89,20 @@ router.get('/me', authenticate, authController.getCurrentUser);
  * @access  Private
  */
 router.put('/profile', authenticate, validate(updateProfileSchema), authController.updateProfile);
+
+/**
+ * @route   POST /api/v1/auth/change-password
+ * @desc    Change user password (requires current password)
+ * @access  Private
+ */
+router.post('/change-password', authenticate, validate(changePasswordSchema), authController.changePassword);
+
+/**
+ * @route   GET /api/v1/auth/sessions
+ * @desc    Get active sessions for current user
+ * @access  Private
+ */
+router.get('/sessions', authenticate, authController.getActiveSessions);
 
 /**
  * @route   POST /api/v1/auth/logout

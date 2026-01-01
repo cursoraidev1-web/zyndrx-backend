@@ -15,6 +15,7 @@ import projectRoutes from './modules/projects/projects.routes';
 import taskRoutes from './modules/tasks/tasks.routes';
 import githubRoutes from './modules/github/github.routes';
 import notifRoutes from './modules/notifications/notifications.routes';
+import pushRoutes from './modules/push/push.routes';
 import docRoutes from './modules/documents/documents.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
 import teamRoutes from './modules/teams/teams.routes';
@@ -23,6 +24,7 @@ import subscriptionRoutes from './modules/subscriptions/subscriptions.routes';
 import plansRoutes from './modules/subscriptions/subscriptions.public.routes';
 import commentRoutes from './modules/comments/comments.routes';
 import handoffRoutes from './modules/handoffs/handoffs.routes';
+import feedbackRoutes from './modules/feedback/feedback.routes';
 import activityRoutes from './modules/activity/activity.routes';
 
 class App {
@@ -144,6 +146,7 @@ class App {
     this.app.use(`${apiPrefix}/tasks`, taskRoutes);
     this.app.use(`${apiPrefix}/github`, githubRoutes);
     this.app.use(`${apiPrefix}/notifications`, notifRoutes);
+    this.app.use(`${apiPrefix}/push`, pushRoutes);
     this.app.use(`${apiPrefix}/documents`, docRoutes);
     this.app.use(`${apiPrefix}/analytics`, analyticsRoutes);
     this.app.use(`${apiPrefix}/teams`, teamRoutes);
@@ -151,6 +154,7 @@ class App {
     this.app.use(`${apiPrefix}/plans`, plansRoutes); // Plans endpoint (public)
     this.app.use(`${apiPrefix}/comments`, commentRoutes);
     this.app.use(`${apiPrefix}/handoffs`, handoffRoutes);
+    this.app.use(`${apiPrefix}/feedback`, feedbackRoutes);
     this.app.use(`${apiPrefix}/activity`, activityRoutes);
 
     // Welcome route (API Directory)

@@ -56,12 +56,15 @@ export class GithubService {
       .eq('id', taskId);
 
     if (error) {
-      console.error(`Failed to close task ${taskId}:`, error.message);
+      logger.error('Failed to close task from GitHub webhook', { taskId, error: error.message });
       return;
     }
 
     // 2. Log the Commit (Optional: Store in 'github_commits' table if you created it)
-    console.log(`✅ GitHub Automation: Task ${taskId} moved to Review by commit ${commit.id.substring(0, 7)}`);
+    logger.info('GitHub automation: Task moved to review', { 
+      taskId, 
+      commitId: commit.id.substring(0, 7) 
+    });
     
     // Future: Insert into 'github_commits' table here
   }
