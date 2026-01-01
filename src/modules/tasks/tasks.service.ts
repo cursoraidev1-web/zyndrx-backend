@@ -67,12 +67,24 @@ export class TaskService {
   static async createTask(data: any, userId: string, companyId: string) {
     try {
       // Verify project exists and belongs to company
-      const { data: project, error: projectError } = await db
-        .from('projects')
-        .select('company_id')
-        .eq('id', data.project_id)
-        .single();
-
+      const { data: task, error } = await supabaseAdmin
+  .from('tasks')
+  .insert({
+    title: data.title,
+    description: data.description,
+    status: data.status,
+    priority: data.priority,
+    start_date: data.startDate,
+    due_date: data.dueDate,
+    
+    // 👇 Correct Spelling
+    assignee_id: data.assigneeId, 
+    
+    project_id: data.projectId,
+    company_id: companyId
+  })
+  .select()
+  .single();
       if (projectError || !project) {
         logger.error('Project not found', { projectId: data.project_id, error: projectError });
         throw new AppError('Project not found', 404);
