@@ -15,6 +15,7 @@ import projectRoutes from './modules/projects/projects.routes';
 import taskRoutes from './modules/tasks/tasks.routes';
 import githubRoutes from './modules/github/github.routes';
 import notifRoutes from './modules/notifications/notifications.routes';
+import pushRoutes from './modules/push/push.routes';
 import docRoutes from './modules/documents/documents.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
 import teamRoutes from './modules/teams/teams.routes';
@@ -145,6 +146,7 @@ class App {
     this.app.use(`${apiPrefix}/tasks`, taskRoutes);
     this.app.use(`${apiPrefix}/github`, githubRoutes);
     this.app.use(`${apiPrefix}/notifications`, notifRoutes);
+    this.app.use(`${apiPrefix}/push`, pushRoutes);
     this.app.use(`${apiPrefix}/documents`, docRoutes);
     this.app.use(`${apiPrefix}/analytics`, analyticsRoutes);
     this.app.use(`${apiPrefix}/teams`, teamRoutes);
