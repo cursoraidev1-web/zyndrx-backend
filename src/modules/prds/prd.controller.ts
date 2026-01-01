@@ -18,33 +18,49 @@ export const createPrd = async (req: Request, res: Response, next: NextFunction)
   }
 };
 
+/**
+ * GET /api/v1/prds/:id
+ * Get a single PRD by ID
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const getPrd = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const prd = await PrdService.getPRDById(id);
+    const companyId = req.user!.companyId || req.companyId;
     
-    if (!prd) {
-      return ResponseHandler.notFound(res, 'PRD not found');
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
     }
 
+    const prd = await PrdService.getPRDById(id, companyId);
     return ResponseHandler.success(res, prd, 'PRD fetched successfully');
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * GET /api/v1/prds?project_id=...
+ * Get PRDs for a project or all PRDs
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const getPrds = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { project_id } = req.query;
     const userId = req.user!.id;
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
 
     let prds;
     if (project_id && typeof project_id === 'string') {
-      // Get PRDs for a specific project
-      prds = await PrdService.getPRDsByProject(project_id);
+      // Get PRDs for a specific project (with company validation)
+      prds = await PrdService.getPRDsByProject(project_id, companyId);
     } else {
-      // Get all PRDs (optionally filtered by user)
-      prds = await PrdService.getAllPRDs(userId);
+      // Get all PRDs for company (optionally filtered by user)
+      prds = await PrdService.getAllPRDs(userId, companyId);
     }
 
     return ResponseHandler.success(res, prds, 'PRDs fetched successfully');
@@ -53,33 +69,67 @@ export const getPrds = async (req: Request, res: Response, next: NextFunction) =
   }
 };
 
+/**
+ * PATCH /api/v1/prds/:id
+ * Update a PRD
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const updatePrd = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { title, content } = req.body;
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
 
-    const prd = await PrdService.updatePRD(id, { title, content });
+    const prd = await PrdService.updatePRD(id, { title, content }, companyId);
     return ResponseHandler.success(res, prd, 'PRD updated successfully');
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * DELETE /api/v1/prds/:id
+ * Delete a PRD
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const deletePrd = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    await PrdService.deletePRD(id);
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    await PrdService.deletePRD(id, companyId);
     return ResponseHandler.success(res, null, 'PRD deleted successfully');
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * POST /api/v1/prds/:id/versions
+ * Create a new version of a PRD
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const createPrdVersion = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
+    const companyId = req.user!.companyId || req.companyId;
     const { title, content, changes_summary } = req.body;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    // Verify PRD exists and belongs to company
+    await PrdService.getPRDById(id, companyId);
 
     const version = await PrdService.createPRDVersion(id, {
       title,
@@ -94,9 +144,23 @@ export const createPrdVersion = async (req: Request, res: Response, next: NextFu
   }
 };
 
+/**
+ * GET /api/v1/prds/:id/versions
+ * Get all versions of a PRD
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const getPrdVersions = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    // Verify PRD exists and belongs to company
+    await PrdService.getPRDById(id, companyId);
+
     const versions = await PrdService.getPRDVersions(id);
     return ResponseHandler.success(res, versions, 'PRD versions fetched successfully');
   } catch (error) {
@@ -104,11 +168,24 @@ export const getPrdVersions = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+/**
+ * PATCH /api/v1/prds/:id/status
+ * Update PRD status (e.g., approve, reject)
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const updateStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const adminId = req.user!.id; 
+    const adminId = req.user!.id;
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    // Verify PRD exists and belongs to company
+    await PrdService.getPRDById(id, companyId);
 
     const prd = await PrdService.updateStatus(id, status, adminId);
     return ResponseHandler.success(res, prd, `PRD marked as ${status}`);

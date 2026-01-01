@@ -28,6 +28,21 @@ export const errorHandler = (err: Error, req: Request, res: Response, _next: Nex
     statusCode = err.statusCode;
     message = err.message;
     isOperational = err.isOperational;
+  } else if ((err as any).code === '23505') {
+    // PostgreSQL unique constraint violation
+    statusCode = 409;
+    message = 'A resource with this information already exists';
+    isOperational = true;
+  } else if ((err as any).code === '42501') {
+    // PostgreSQL permission denied (RLS policy violation)
+    statusCode = 403;
+    message = 'You do not have permission to perform this action. Please contact your administrator.';
+    isOperational = true;
+  } else if ((err as any).code === 'PGRST116') {
+    // Supabase "not found" error
+    statusCode = 404;
+    message = 'Resource not found or access denied';
+    isOperational = true;
   }
 
   // Log error with full details (for debugging)

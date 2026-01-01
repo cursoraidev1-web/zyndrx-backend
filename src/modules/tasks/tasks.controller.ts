@@ -2,16 +2,26 @@ import { Request, Response, NextFunction } from 'express';
 import { TaskService } from './tasks.service';
 import { ResponseHandler } from '../../utils/response';
 
-// GET /api/v1/tasks?project_id=...
+/**
+ * GET /api/v1/tasks?project_id=...
+ * Get tasks for a specific project
+ * Requires company context and verifies project access
+ */
 export const getTasks = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { project_id } = req.query;
+    const companyId = req.user!.companyId || req.companyId;
+    const userId = req.user!.id;
     
     if (!project_id || typeof project_id !== 'string') {
       return ResponseHandler.error(res, 'Project ID is required', 400);
     }
 
-    const tasks = await TaskService.getTasksByProject(project_id);
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const tasks = await TaskService.getTasksByProject(project_id, companyId, userId);
     return ResponseHandler.success(res, tasks);
   } catch (error) {
     next(error);
@@ -34,30 +44,63 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
   }
 };
 
+/**
+ * GET /api/v1/tasks/:id
+ * Get a single task by ID
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const getTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const task = await TaskService.getTaskById(id);
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const task = await TaskService.getTaskById(id, companyId);
     return ResponseHandler.success(res, task, 'Task fetched successfully');
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * PATCH /api/v1/tasks/:id
+ * Update a task
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const updateTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const task = await TaskService.updateTask(id, req.body);
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const task = await TaskService.updateTask(id, req.body, companyId);
     return ResponseHandler.success(res, task, 'Task updated successfully');
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * DELETE /api/v1/tasks/:id
+ * Delete a task
+ * Requires company context to prevent IDOR vulnerabilities
+ */
 export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    await TaskService.deleteTask(id);
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    await TaskService.deleteTask(id, companyId);
     return ResponseHandler.success(res, null, 'Task deleted successfully');
   } catch (error) {
     next(error);

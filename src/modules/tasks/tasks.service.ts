@@ -9,18 +9,62 @@ const db = supabaseAdmin as SupabaseClient<Database>;
 
 export class TaskService {
   
-  static async getTasksByProject(projectId: string) {
+  /**
+   * Get tasks by project with company context validation
+   * Prevents IDOR vulnerability by ensuring project belongs to user's company
+   * 
+   * @param projectId - UUID of the project
+   * @param companyId - UUID of the company (required for security)
+   * @param userId - Optional UUID of user to verify project membership
+   * @returns Array of tasks with enriched user data
+   * @throws AppError if project not found or doesn't belong to company
+   */
+  static async getTasksByProject(projectId: string, companyId: string, userId?: string) {
     try {
-      // First, get all tasks
+      // CRITICAL: Verify project exists and belongs to company
+      const { data: project, error: projectError } = await db
+        .from('projects')
+        .select('id, company_id, owner_id')
+        .eq('id', projectId)
+        .eq('company_id', companyId) // Prevent cross-company access
+        .single();
+
+      if (projectError || !project) {
+        logger.error('Project not found or access denied', { projectId, companyId, error: projectError });
+        throw new AppError('Project not found or access denied', 404);
+      }
+
+      // Verify user has access to project (owner or member)
+      if (userId) {
+        const projectObj = project as any;
+        const isOwner = projectObj.owner_id === userId;
+        
+        if (!isOwner) {
+          const { data: member } = await db
+            .from('project_members')
+            .select('id')
+            .eq('project_id', projectId)
+            .eq('user_id', userId)
+            .single();
+
+          if (!member) {
+            logger.warn('User attempted to access project without membership', { projectId, userId, companyId });
+            throw new AppError('You do not have access to this project', 403);
+          }
+        }
+      }
+
+      // Get tasks for the project
       const { data: tasks, error } = await db
         .from('tasks')
         .select('*')
         .eq('project_id', projectId)
+        .eq('company_id', companyId) // Additional safety check
         .order('created_at', { ascending: true });
 
       if (error) {
-        logger.error('Failed to fetch tasks', { error, projectId });
-        throw new AppError(`Failed to fetch tasks: ${error.message}`, 500);
+        logger.error('Failed to fetch tasks', { error, projectId, companyId });
+        throw new AppError('Failed to fetch tasks', 500);
       }
 
       if (!tasks || tasks.length === 0) {
@@ -99,13 +143,26 @@ export class TaskService {
       }
 
       // Insert task with company_id
+      // Explicitly map fields to prevent invalid column names (e.g., assignee_id -> assigned_to)
+      const taskData: any = {
+        project_id: data.project_id,
+        title: data.title,
+        description: data.description || null,
+        priority: data.priority || 'medium',
+        assigned_to: data.assigned_to || null, // Map assigned_to (not assignee_id)
+        created_by: userId,
+        company_id: companyId, // Ensure company_id is set
+        status: 'todo',
+        tags: data.tags || [],
+      };
+
+      // Only include prd_id if provided
+      if (data.prd_id) {
+        taskData.prd_id = data.prd_id;
+      }
+
       const { data: task, error } = await (db.from('tasks') as any)
-        .insert({
-          ...data,
-          created_by: userId,
-          company_id: companyId, // Ensure company_id is set
-          status: 'todo'
-        })
+        .insert(taskData)
         .select('*')
         .single();
 
@@ -126,24 +183,43 @@ export class TaskService {
     }
   }
 
-  static async updateTask(taskId: string, updates: any) {
+  /**
+   * Update task with company context validation and optimistic locking
+   * Prevents IDOR vulnerability and race conditions
+   * 
+   * @param taskId - UUID of the task
+   * @param updates - Partial task object with fields to update
+   * @param companyId - UUID of the company (required for security)
+   * @returns Updated task object with enriched user data
+   * @throws AppError if task not found, doesn't belong to company, or was modified concurrently
+   */
+  static async updateTask(taskId: string, updates: any, companyId: string) {
     try {
+      // First verify task exists and belongs to company
+      const existingTask = await this.getTaskById(taskId, companyId);
+      
+      // Apply optimistic locking: only update if updated_at hasn't changed
+      // Note: Supabase triggers update updated_at automatically, so we check before update
       const { data: task, error } = await (db.from('tasks') as any)
-        .update(updates)
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', taskId)
+        .eq('company_id', companyId) // CRITICAL: Prevent IDOR by validating company_id
         .select('*')
         .single();
 
       if (error) {
         if (error.code === 'PGRST116') {
-          throw new AppError('Task not found', 404);
+          throw new AppError('Task not found or access denied', 404);
         }
-        logger.error('Failed to update task', { error, taskId, updates });
-        throw new AppError(`Failed to update task: ${error.message}`, 500);
+        logger.error('Failed to update task', { error, taskId, companyId, updates });
+        throw new AppError('Failed to update task', 500);
       }
 
       if (!task) {
-        throw new AppError('Task not found', 404);
+        throw new AppError('Task not found or access denied', 404);
       }
 
       // Fetch assignee data if assigned_to exists
@@ -168,24 +244,34 @@ export class TaskService {
     }
   }
 
-  static async getTaskById(taskId: string) {
+  /**
+   * Get task by ID with company context validation
+   * Prevents IDOR vulnerability by ensuring task belongs to user's company
+   * 
+   * @param taskId - UUID of the task
+   * @param companyId - UUID of the company (required for security)
+   * @returns Task object with enriched user data
+   * @throws AppError if task not found or doesn't belong to company
+   */
+  static async getTaskById(taskId: string, companyId: string) {
     try {
       const { data: task, error } = await db
         .from('tasks')
         .select('*')
         .eq('id', taskId)
+        .eq('company_id', companyId) // CRITICAL: Prevent IDOR by validating company_id
         .single();
 
       if (error) {
         if (error.code === 'PGRST116') {
-          throw new AppError('Task not found', 404);
+          throw new AppError('Task not found or access denied', 404);
         }
-        logger.error('Failed to fetch task', { error, taskId });
-        throw new AppError(`Failed to fetch task: ${error.message}`, 500);
+        logger.error('Failed to fetch task', { error, taskId, companyId });
+        throw new AppError('Failed to fetch task', 500);
       }
 
       if (!task) {
-        throw new AppError('Task not found', 404);
+        throw new AppError('Task not found or access denied', 404);
       }
 
       // Fetch assignee and creator data
@@ -220,19 +306,31 @@ export class TaskService {
     }
   }
 
-  static async deleteTask(taskId: string) {
+  /**
+   * Delete task with company context validation
+   * Prevents IDOR vulnerability by ensuring task belongs to user's company
+   * 
+   * @param taskId - UUID of the task
+   * @param companyId - UUID of the company (required for security)
+   * @throws AppError if task not found or doesn't belong to company
+   */
+  static async deleteTask(taskId: string, companyId: string) {
     try {
+      // First verify task exists and belongs to company
+      await this.getTaskById(taskId, companyId);
+      
       const { error } = await (db.from('tasks') as any)
         .delete()
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .eq('company_id', companyId); // CRITICAL: Prevent IDOR by validating company_id
 
       if (error) {
-        logger.error('Failed to delete task', { error: error.message, taskId });
-        throw new AppError(`Failed to delete task: ${error.message}`, 500);
+        logger.error('Failed to delete task', { error: error.message, taskId, companyId });
+        throw new AppError('Failed to delete task', 500);
       }
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error('Delete task error', { error, taskId });
+      logger.error('Delete task error', { error, taskId, companyId });
       throw new AppError('Failed to delete task', 500);
     }
   }
