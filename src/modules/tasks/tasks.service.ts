@@ -110,7 +110,7 @@ export class TaskService {
 
   static async createTask(data: any, userId: string, companyId: string) {
     try {
-      // Verify project exists and belongs to company
+      // 1. Verify project exists FIRST
       const { data: project, error: projectError } = await db
         .from('projects')
         .select('company_id')
@@ -122,22 +122,20 @@ export class TaskService {
         throw new AppError('Project not found', 404);
       }
 
-      // Ensure company_id matches
+      // 2. Ensure company_id matches
       const projectCompanyId = (project as any).company_id;
       if (projectCompanyId !== companyId) {
         throw new AppError('Project does not belong to your company', 403);
       }
 
-      // Check plan limits
+      // 3. Check plan limits
       try {
         const limitCheck = await SubscriptionService.checkLimit(companyId, 'task');
         if (!limitCheck.allowed) {
           throw new AppError(limitCheck.message || 'Plan limit reached. Please upgrade your plan.', 403);
         }
       } catch (limitError) {
-        if (limitError instanceof AppError) {
-          throw limitError;
-        }
+        if (limitError instanceof AppError) throw limitError;
         logger.error('Failed to check task limit', { error: limitError, companyId });
         throw new AppError('Unable to create task. Please contact your administrator.', 500);
       }
