@@ -155,31 +155,47 @@ export class FeedbackService {
       // Verify feedback belongs to user
       const { data: existing, error: fetchError } = await db
         .from('feedback')
-        .select('user_id, status')
+        .select('user_id, status, company_id')
         .eq('id', feedbackId)
-        .single();
+        .single() as any;
 
       if (fetchError || !existing) {
         throw new AppError('Feedback not found', 404);
       }
 
-      // Users can only update their own feedback, and only if it's pending
-      // (Admins can update any feedback, but that would require additional permission check)
-      if (existing.user_id !== userId) {
-        throw new AppError('You can only update your own feedback', 403);
+      // Check if the user is an admin of the company associated with the feedback
+      let isAdmin = false;
+      if (existing.company_id) {
+        const { data: membership } = await db
+          .from('user_companies')
+          .select('role')
+          .eq('company_id', existing.company_id)
+          .eq('user_id', userId)
+          .single() as any;
+        isAdmin = membership?.role === 'admin';
       }
 
-      if (existing.status !== 'pending') {
-        throw new AppError('Can only update pending feedback', 403);
+      // Only allow updating if user is admin OR if it's the owner and status is pending
+      if (!isAdmin && (existing.user_id !== userId || existing.status !== 'pending')) {
+        throw new AppError('Unauthorized to update feedback status', 403);
+      }
+
+      const updatePayload: any = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (status === 'resolved' || status === 'closed') {
+        updatePayload.resolved_at = new Date().toISOString();
+        updatePayload.resolved_by = userId;
+      } else {
+        updatePayload.resolved_at = null;
+        updatePayload.resolved_by = null;
       }
 
       const { data: feedback, error } = await (db.from('feedback') as any)
-        .update({
-          status,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', feedbackId)
-        .eq('user_id', userId)
         .select()
         .single();
 

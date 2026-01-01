@@ -588,10 +588,11 @@ export class AuthService {
   }
 
   // UPDATE PROFILE
-  async updateProfile(userId: string, data: { fullName?: string; avatarUrl?: string }) {
-    const updateData: UserUpdate = {};
+  async updateProfile(userId: string, data: { fullName?: string; avatarUrl?: string; themePreference?: string }) {
+    const updateData: any = {};
     if (data.fullName !== undefined) updateData.full_name = data.fullName;
     if (data.avatarUrl !== undefined) updateData.avatar_url = data.avatarUrl;
+    if (data.themePreference !== undefined) updateData.theme_preference = data.themePreference;
 
     const { data: user, error } = await ((supabaseAdmin.from('users') as any)
       .update(updateData) as any).eq('id', userId).select().single() as any;
@@ -817,7 +818,7 @@ export class AuthService {
     }
 
     // Format sessions data
-    const sessions = (events || []).map((event: any) => {
+    const sessions = (events || []).map((event: any, index: number) => {
       const userAgent = event.user_agent || '';
       const ipAddress = event.ip_address || '';
       
@@ -838,7 +839,7 @@ export class AuthService {
         else if (userAgent.includes('Edg')) browser = 'Edge';
       }
 
-      const isCurrent = event.id === events?.[0]?.id; // Most recent is current
+      const isCurrent = index === 0; // Most recent is current
 
       return {
         id: event.id,

@@ -86,11 +86,8 @@ export class PaystackService {
     } catch (error: any) {
       logger.error('Paystack initialization error', {
         error: error.message,
-        response: error.response?.data,
       });
-      throw new Error(
-        error.response?.data?.message || 'Failed to initialize Paystack payment'
-      );
+      throw error instanceof Error ? error : new Error('Failed to initialize Paystack payment');
     }
   }
 
@@ -103,25 +100,28 @@ export class PaystackService {
         throw new Error('Paystack secret key is not configured');
       }
 
-      const response = await axios.get(
+      const response = await fetch(
         `${this.PAYSTACK_BASE_URL}/transaction/verify/${reference}`,
         {
+          method: 'GET',
           headers: {
             Authorization: `Bearer ${this.PAYSTACK_SECRET_KEY}`,
           },
         }
       );
 
-      return response.data;
+      const responseData = await response.json() as PaystackVerifyResponse;
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to verify Paystack payment');
+      }
+
+      return responseData;
     } catch (error: any) {
       logger.error('Paystack verification error', {
         error: error.message,
         reference,
-        response: error.response?.data,
       });
-      throw new Error(
-        error.response?.data?.message || 'Failed to verify Paystack payment'
-      );
+      throw error instanceof Error ? error : new Error('Failed to verify Paystack payment');
     }
   }
 
