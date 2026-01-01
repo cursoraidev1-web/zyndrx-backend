@@ -582,7 +582,8 @@ export class AuthService {
       fullName: user.full_name,
       role: user.role,
       avatarUrl: user.avatar_url,
-      is2FAEnabled: user.is_two_factor_enabled // Useful for frontend settings
+      is2FAEnabled: user.is_two_factor_enabled,
+      themePreference: user.theme_preference || 'light'
     };
   }
 
@@ -742,5 +743,112 @@ export class AuthService {
     
     if (updateError) throw new AppError('Failed to reset password', 500);
     return { success: true };
+  }
+
+  // CHANGE PASSWORD (Authenticated user changes their own password)
+  async changePassword(userId: string, currentPassword: string, newPassword: string, ipAddress?: string, userAgent?: string) {
+    // Get user email for password verification
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('email')
+      .eq('id', userId)
+      .single() as any;
+
+    if (userError || !user) {
+      throw new AppError('User not found', 404);
+    }
+    
+    // Verify current password by attempting to sign in
+    const { data: authData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+
+    if (signInError || !authData.user) {
+      // Log failed password change attempt
+      await SecurityService.logSecurityEvent({
+        userId,
+        eventType: 'password_change_failed',
+        ipAddress,
+        userAgent,
+        success: false,
+        details: { reason: 'Invalid current password' },
+      });
+      throw new AppError('Current password is incorrect', 401);
+    }
+
+    // Update password using admin API
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { password: newPassword }
+    );
+
+    if (updateError) {
+      throw new AppError('Failed to change password', 500);
+    }
+
+    // Log successful password change
+    await SecurityService.logSecurityEvent({
+      userId,
+      eventType: 'password_changed',
+      ipAddress,
+      userAgent,
+      success: true,
+      details: {},
+    });
+
+    return { success: true };
+  }
+
+  // GET ACTIVE SESSIONS (Recent login events for the user)
+  async getActiveSessions(userId: string) {
+    const { data: events, error } = await supabaseAdmin
+      .from('security_events')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('event_type', 'login_success')
+      .eq('success', true)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) {
+      logger.error('Failed to fetch active sessions', { error, userId });
+      throw new AppError('Failed to fetch active sessions', 500);
+    }
+
+    // Format sessions data
+    const sessions = (events || []).map((event: any) => {
+      const userAgent = event.user_agent || '';
+      const ipAddress = event.ip_address || '';
+      
+      // Parse user agent (basic parsing)
+      let device = 'Unknown Device';
+      let browser = 'Unknown Browser';
+      
+      if (userAgent) {
+        if (userAgent.includes('Windows')) device = 'Windows';
+        else if (userAgent.includes('Mac')) device = 'Mac';
+        else if (userAgent.includes('Linux')) device = 'Linux';
+        else if (userAgent.includes('Android')) device = 'Android';
+        else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) device = 'iOS';
+        
+        if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) browser = 'Chrome';
+        else if (userAgent.includes('Firefox')) browser = 'Firefox';
+        else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) browser = 'Safari';
+        else if (userAgent.includes('Edg')) browser = 'Edge';
+      }
+
+      const isCurrent = event.id === events?.[0]?.id; // Most recent is current
+
+      return {
+        id: event.id,
+        device: `${browser} on ${device}`,
+        location: ipAddress ? `${ipAddress}` : 'Unknown Location', // Can be enhanced with IP geolocation
+        lastActive: new Date(event.created_at).toISOString(),
+        isCurrent,
+      };
+    });
+
+    return sessions;
   }
 }

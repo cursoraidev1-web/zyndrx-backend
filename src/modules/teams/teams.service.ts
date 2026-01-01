@@ -12,7 +12,6 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 export class TeamService {
   
   static async inviteUser(projectId: string, email: string, role: string, invitedBy: string) {
-    
     const { data: project } = await db.from('projects').select('owner_id').eq('id', projectId).single();
     if (!project) throw new Error('Project not found');
 

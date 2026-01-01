@@ -26,6 +26,9 @@ export interface Subscription {
   currentPeriodStart?: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;
+  paystackCustomerCode?: string;
+  paystackSubscriptionCode?: string;
+  paystackAuthorizationCode?: string;
 }
 
 export interface Usage {

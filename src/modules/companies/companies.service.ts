@@ -9,6 +9,7 @@ const db = supabaseAdmin as SupabaseClient<Database>;
 
 export interface CreateCompanyData {
   name: string;
+  description?: string;
   userId: string;
 }
 

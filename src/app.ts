@@ -23,6 +23,7 @@ import subscriptionRoutes from './modules/subscriptions/subscriptions.routes';
 import plansRoutes from './modules/subscriptions/subscriptions.public.routes';
 import commentRoutes from './modules/comments/comments.routes';
 import handoffRoutes from './modules/handoffs/handoffs.routes';
+import feedbackRoutes from './modules/feedback/feedback.routes';
 import activityRoutes from './modules/activity/activity.routes';
 
 class App {
@@ -151,6 +152,7 @@ class App {
     this.app.use(`${apiPrefix}/plans`, plansRoutes); // Plans endpoint (public)
     this.app.use(`${apiPrefix}/comments`, commentRoutes);
     this.app.use(`${apiPrefix}/handoffs`, handoffRoutes);
+    this.app.use(`${apiPrefix}/feedback`, feedbackRoutes);
     this.app.use(`${apiPrefix}/activity`, activityRoutes);
 
     // Welcome route (API Directory)

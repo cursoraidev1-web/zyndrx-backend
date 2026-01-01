@@ -31,7 +31,7 @@ export class CompanyController {
    */
   createCompany = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { name } = req.body;
+    const { name, description } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return ResponseHandler.error(res, 'Company name is required', 400);
@@ -39,6 +39,7 @@ export class CompanyController {
 
     const company = await CompanyService.createCompany({
       name: name.trim(),
+      description: description?.trim() || undefined,
       userId,
     });
 
