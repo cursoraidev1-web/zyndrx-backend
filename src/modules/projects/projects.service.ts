@@ -43,9 +43,9 @@ export class ProjectService {
       // Send project creation email to the owner
       try {
         const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', data.owner_id).single();
-        if (ownerData) {
+        if (ownerData && 'email' in ownerData && 'full_name' in ownerData) {
           const { EmailService } = await import('../../utils/email.service');
-          await EmailService.sendProjectCreatedEmail(ownerData.email, ownerData.full_name, project.name, project.id);
+          await EmailService.sendProjectCreatedEmail(ownerData.email as string, ownerData.full_name as string, project.name, project.id);
         }
       } catch (emailError) {
         logger.error('Failed to send project creation email', { error: emailError, projectId: project.id });

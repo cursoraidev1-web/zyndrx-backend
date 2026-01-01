@@ -196,13 +196,13 @@ export class DocumentService {
         const { data: uploaderData } = await db.from('users').select('email, full_name').eq('id', userId).single();
         const { data: projectData } = await db.from('projects').select('name').eq('id', data.project_id).single();
         
-        if (uploaderData && projectData) {
+        if (uploaderData && 'email' in uploaderData && 'full_name' in uploaderData && projectData && 'name' in projectData) {
           const { EmailService } = await import('../../utils/email.service');
           await EmailService.sendDocumentCreatedEmail(
-            uploaderData.email,
-            uploaderData.full_name,
+            uploaderData.email as string,
+            uploaderData.full_name as string,
             doc.title,
-            projectData.name,
+            projectData.name as string,
             data.project_id
           );
         }

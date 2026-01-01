@@ -176,15 +176,15 @@ export class TaskService {
           const { data: creatorData } = await db.from('users').select('full_name').eq('id', userId).single();
           const { data: projectData } = await db.from('projects').select('name').eq('id', task.project_id).single();
           
-          if (assigneeData && creatorData && projectData) {
+          if (assigneeData && 'email' in assigneeData && 'full_name' in assigneeData && creatorData && 'full_name' in creatorData && projectData && 'name' in projectData) {
             const { EmailService } = await import('../../utils/email.service');
             await EmailService.sendTaskCreatedEmail(
-              assigneeData.email,
-              assigneeData.full_name,
+              assigneeData.email as string,
+              assigneeData.full_name as string,
               task.title,
               task.id,
-              projectData.name,
-              creatorData.full_name
+              projectData.name as string,
+              creatorData.full_name as string
             );
           }
         } catch (emailError) {
