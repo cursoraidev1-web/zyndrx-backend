@@ -131,15 +131,23 @@ export const getProjectMembers = async (req: Request, res: Response, next: NextF
 
 export const addProjectMember = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // Project ID
     const companyId = req.user!.companyId;
-    const { user_id, role } = req.body;
+    const inviterId = req.user!.id; // Person doing the inviting
+    const { user_id, role } = req.body; // Person being invited
     
     if (!companyId) {
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const member = await ProjectService.addProjectMember(id, companyId, user_id, role);
+    const member = await ProjectService.addProjectMember(
+      id, 
+      companyId, 
+      user_id, 
+      role, 
+      inviterId
+    );
+
     return ResponseHandler.created(res, member, 'Member added to project successfully');
   } catch (error) {
     next(error);
