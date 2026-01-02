@@ -1,74 +1,85 @@
 import { Request, Response, NextFunction } from 'express';
 import { CommentService } from './comments.service';
-import { ResponseHandler } from '../../utils/response';
+import { AppError } from '../../middleware/error.middleware';
 
-export const createComment = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = req.user!.id;
-    const { resource_type, resource_id, content, parent_id, project_id } = req.body;
+export class CommentController {
+  
+  static async createComment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { user } = req as any;
+      
+      // ✅ FIX: Passed userId and companyId arguments
+      const comment = await CommentService.createComment(
+        req.body, 
+        user.id, 
+        user.companyId
+      );
 
-    if (!project_id) {
-      return ResponseHandler.error(res, 'Project ID is required', 400);
+      res.status(201).json({
+        status: 'success',
+        data: { comment }
+      });
+    } catch (error) {
+      next(error);
     }
-
-    const comment = await CommentService.createComment({
-      user_id: userId,
-      project_id,
-      resource_type: resource_type || 'task',
-      resource_id,
-      content,
-      parent_id,
-    });
-
-    return ResponseHandler.created(res, comment, 'Comment created successfully');
-  } catch (error) {
-    next(error);
   }
-};
 
-export const getComments = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { resource_type, resource_id } = req.query;
+  static async getComments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { resource_id, resource_type } = req.query;
 
-    if (!resource_type || !resource_id) {
-      return ResponseHandler.error(res, 'Resource type and resource ID are required', 400);
+      if (!resource_id || !resource_type) {
+        throw new AppError('Resource ID and Type are required', 400);
+      }
+
+      // ✅ FIX: Strict type validation for resource_type
+      if (resource_type !== 'task' && resource_type !== 'prd') {
+         throw new AppError('Resource type must be task or prd', 400);
+      }
+
+      const comments = await CommentService.getComments(
+        resource_id as string, 
+        resource_type as 'task' | 'prd'
+      );
+
+      res.status(200).json({
+        status: 'success',
+        data: { comments }
+      });
+    } catch (error) {
+      next(error);
     }
-
-    const comments = await CommentService.getComments(
-      resource_type as string,
-      resource_id as string
-    );
-
-    return ResponseHandler.success(res, comments, 'Comments fetched successfully');
-  } catch (error) {
-    next(error);
   }
-};
 
-export const updateComment = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
-    const { content } = req.body;
+  static async updateComment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { content } = req.body;
+      const { user } = req as any;
 
-    const comment = await CommentService.updateComment(id, userId, content);
-    return ResponseHandler.success(res, comment, 'Comment updated successfully');
-  } catch (error) {
-    next(error);
+      // ✅ FIX: Passed companyId
+      const comment = await CommentService.updateComment(id, user.id, content, user.companyId);
+
+      res.status(200).json({
+        status: 'success',
+        data: { comment }
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-};
 
-export const deleteComment = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
+  static async deleteComment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { user } = req as any;
 
-    await CommentService.deleteComment(id, userId);
-    return ResponseHandler.success(res, null, 'Comment deleted successfully');
-  } catch (error) {
-    next(error);
+      // ✅ FIX: Passed companyId
+      await CommentService.deleteComment(id, user.id, user.companyId);
+
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
   }
-};
-
-
-
+}

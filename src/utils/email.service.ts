@@ -82,22 +82,23 @@ export class EmailService {
   }
 
   /**
-   * Send task creation notification email (to assignee if assigned)
+   * Send task assignment notification email
+   * (Previously called sendTaskCreatedEmail - renamed to match Service calls)
    */
-  static async sendTaskCreatedEmail(
+  static async sendTaskAssignedEmail(
     email: string, 
     fullName: string, 
     taskTitle: string, 
-    taskId: string, 
     projectName: string,
-    createdBy: string
+    assignedBy: string,
+    taskId: string
   ) {
     const subject = `New task assigned: ${taskTitle}`;
     const html = `
       <h2>New Task Assigned</h2>
       <p>Hi ${fullName},</p>
-      <p>A new task "<strong>${taskTitle}</strong>" has been assigned to you in the project "${projectName}".</p>
-      <p>Created by: ${createdBy}</p>
+      <p><strong>${assignedBy}</strong> has assigned you a new task in project "<strong>${projectName}</strong>".</p>
+      <p>Task: <strong>${taskTitle}</strong></p>
       <p><a href="${baseUrl}/tasks/${taskId}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View Task</a></p>
       <p>Best regards,<br>The Zyndrx Team</p>
     `;
@@ -120,44 +121,26 @@ export class EmailService {
   }
 
   /**
-   * Send comment creation notification email
+   * Send comment notification email
+   * (Renamed to sendNewCommentEmail to match Service calls)
    */
-  static async sendCommentCreatedEmail(
+  static async sendNewCommentEmail(
     email: string, 
     fullName: string, 
     commenterName: string, 
-    resourceType: string, 
     resourceName: string,
-    resourceId: string
+    resourceType: string, 
+    content: string
   ) {
     const subject = `New comment on ${resourceType}: ${resourceName}`;
     const html = `
       <h2>New Comment</h2>
       <p>Hi ${fullName},</p>
-      <p><strong>${commenterName}</strong> commented on the ${resourceType} "${resourceName}".</p>
-      <p><a href="${baseUrl}/${resourceType}s/${resourceId}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View ${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)}</a></p>
-      <p>Best regards,<br>The Zyndrx Team</p>
-    `;
-    await this.sendEmail(email, subject, html);
-  }
-
-  /**
-   * Send handoff creation notification email (to recipient)
-   */
-  static async sendHandoffCreatedEmail(
-    email: string, 
-    fullName: string, 
-    handoffTitle: string, 
-    handoffId: string,
-    fromUserName: string,
-    projectName: string
-  ) {
-    const subject = `New handoff: ${handoffTitle}`;
-    const html = `
-      <h2>New Handoff</h2>
-      <p>Hi ${fullName},</p>
-      <p><strong>${fromUserName}</strong> has created a handoff "<strong>${handoffTitle}</strong>" for you in the project "${projectName}".</p>
-      <p><a href="${baseUrl}/handoffs/${handoffId}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View Handoff</a></p>
+      <p><strong>${commenterName}</strong> commented on the ${resourceType} "<strong>${resourceName}</strong>":</p>
+      <blockquote style="border-left: 4px solid #ddd; padding-left: 10px; color: #555; margin: 15px 0;">
+        ${content}
+      </blockquote>
+      <p>Login to Zyndrx to reply.</p>
       <p>Best regards,<br>The Zyndrx Team</p>
     `;
     await this.sendEmail(email, subject, html);
@@ -183,9 +166,32 @@ export class EmailService {
     `;
     await this.sendEmail(email, subject, html);
   }
+
+<<<<<<< HEAD
+
+
+
+=======
+  /**
+   * Send handoff creation notification email
+   */
+  static async sendHandoffCreatedEmail(
+    email: string, 
+    fullName: string, 
+    handoffTitle: string, 
+    handoffId: string,
+    fromUserName: string,
+    projectName: string
+  ) {
+    const subject = `New handoff: ${handoffTitle}`;
+    const html = `
+      <h2>New Handoff</h2>
+      <p>Hi ${fullName},</p>
+      <p><strong>${fromUserName}</strong> has created a handoff "<strong>${handoffTitle}</strong>" for you in the project "${projectName}".</p>
+      <p><a href="${baseUrl}/handoffs/${handoffId}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View Handoff</a></p>
+      <p>Best regards,<br>The Zyndrx Team</p>
+    `;
+    await this.sendEmail(email, subject, html);
+  }
 }
-
-
-
-
-
+>>>>>>> 75a5ec0968ea32bd5eee2e1580c7d24e9dd49f67
