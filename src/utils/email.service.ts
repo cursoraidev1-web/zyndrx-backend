@@ -167,18 +167,13 @@ export class EmailService {
     await this.sendEmail(email, subject, html);
   }
 
-<<<<<<< HEAD
-
-
-
-=======
   /**
    * Send handoff creation notification email
    */
   static async sendHandoffCreatedEmail(
-    email: string, 
-    fullName: string, 
-    handoffTitle: string, 
+    email: string,
+    fullName: string,
+    handoffTitle: string,
     handoffId: string,
     fromUserName: string,
     projectName: string
@@ -194,4 +189,3 @@ export class EmailService {
     await this.sendEmail(email, subject, html);
   }
 }
->>>>>>> 75a5ec0968ea32bd5eee2e1580c7d24e9dd49f67
