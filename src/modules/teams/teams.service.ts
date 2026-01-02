@@ -144,8 +144,7 @@ export class TeamService {
   }) {
     try {
       // Insert team first
-      const { data: team, error } = await db
-        .from('teams')
+      const { data: team, error } = await (db.from('teams') as any)
         .insert({
           company_id: data.company_id,
           name: data.name,
@@ -167,22 +166,20 @@ export class TeamService {
       }
 
       // Fetch related data separately if needed
-      let teamWithRelations = { ...team };
+      let teamWithRelations: any = { ...team };
       
-      if (team.team_lead_id) {
-        const { data: teamLead } = await db
-          .from('users')
+      if ((team as any).team_lead_id) {
+        const { data: teamLead } = await (db.from('users') as any)
           .select('id, full_name, avatar_url, email')
-          .eq('id', team.team_lead_id)
+          .eq('id', (team as any).team_lead_id)
           .single();
         teamWithRelations.team_lead = teamLead;
       }
 
-      if (team.created_by) {
-        const { data: creator } = await db
-          .from('users')
+      if ((team as any).created_by) {
+        const { data: creator } = await (db.from('users') as any)
           .select('id, full_name, avatar_url')
-          .eq('id', team.created_by)
+          .eq('id', (team as any).created_by)
           .single();
         teamWithRelations.creator = creator;
       }

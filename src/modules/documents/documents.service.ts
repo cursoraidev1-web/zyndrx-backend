@@ -28,8 +28,7 @@ export class DocumentService {
 
   static async saveDocumentMetadata(data: any, userId: string, companyId: string) {
     // Verify user has access to the company before inserting
-    const { data: membership, error: membershipError } = await db
-      .from('user_companies')
+    const { data: membership, error: membershipError } = await (db.from('user_companies') as any)
       .select('id, status, role')
       .eq('company_id', companyId)
       .eq('user_id', userId)
@@ -40,7 +39,7 @@ export class DocumentService {
       throw new AppError('You do not have access to this company', 403);
     }
 
-    if (membership.status !== 'active') {
+    if ((membership as any).status !== 'active') {
       throw new AppError('Your company membership is not active', 403);
     }
 
