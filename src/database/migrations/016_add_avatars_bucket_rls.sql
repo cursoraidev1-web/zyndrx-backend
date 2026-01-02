@@ -48,3 +48,6 @@ USING (
 -- WITH CHECK (bucket_id = 'avatars' AND name LIKE (auth.uid()::text || '/%'))
 -- USING (bucket_id = 'avatars' AND name LIKE (auth.uid()::text || '/%'))
 
+
+
+

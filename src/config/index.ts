@@ -41,7 +41,20 @@ const envSchema = z.object({
  
   // Email
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().email().default('noreply@zyndrx.com'),
+  EMAIL_FROM: z.preprocess(
+    (val) => (val === '' || val === undefined ? undefined : val),
+    z.string()
+      .refine(
+        (val) => {
+          // Allow format: "Name <email@domain.com>" or just "email@domain.com"
+          const emailMatch = val.match(/<([^>]+)>/) || [null, val];
+          const email = emailMatch[1] || val;
+          return z.string().email().safeParse(email).success;
+        },
+        { message: 'Must be a valid email address or in format "Name <email@domain.com>"' }
+      )
+      .default('noreply@zyndrx.com')
+  ),
 
   // Push Notifications (VAPID keys)
   VAPID_PUBLIC_KEY: z.string().optional(),
