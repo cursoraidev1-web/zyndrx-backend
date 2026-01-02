@@ -50,14 +50,16 @@ export class PrdService {
       const { data: creatorData } = await db.from('users').select('email, full_name').eq('id', data.created_by).single();
       const { data: projectData } = await db.from('projects').select('name').eq('id', data.project_id).single();
       
-      if (creatorData && 'email' in creatorData && 'full_name' in creatorData && projectData && 'name' in projectData) {
+      const creator = creatorData as any;
+      const project = projectData as any;
+      if (creator && creator.email && creator.full_name && project && project.name) {
         const { EmailService } = await import('../../utils/email.service');
         await EmailService.sendPRDCreatedEmail(
-          creatorData.email as string,
-          creatorData.full_name as string,
+          creator.email as string,
+          creator.full_name as string,
           prd.title,
           prd.id,
-          projectData.name as string
+          project.name as string
         );
       }
     } catch (emailError) {

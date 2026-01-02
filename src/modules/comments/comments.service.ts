@@ -51,22 +51,26 @@ export class CommentService {
       
       if (data.resource_type === 'task') {
         const { data: taskData } = await db.from('tasks').select('title, created_by').eq('id', data.resource_id).single();
-        if (taskData && 'title' in taskData && 'created_by' in taskData) {
-          resourceName = taskData.title as string;
-          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', taskData.created_by as string).single();
-          if (ownerData && 'email' in ownerData && 'full_name' in ownerData && ownerData.email !== commenter.email) {
-            resourceOwnerEmail = ownerData.email as string;
-            resourceOwnerName = ownerData.full_name as string;
+        const task = taskData as any;
+        if (task && task.title && task.created_by) {
+          resourceName = task.title as string;
+          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', task.created_by as string).single();
+          const owner = ownerData as any;
+          if (owner && owner.email && owner.full_name && owner.email !== commenter.email) {
+            resourceOwnerEmail = owner.email as string;
+            resourceOwnerName = owner.full_name as string;
           }
         }
       } else if (data.resource_type === 'prd') {
         const { data: prdData } = await db.from('prds').select('title, created_by').eq('id', data.resource_id).single();
-        if (prdData && 'title' in prdData && 'created_by' in prdData) {
-          resourceName = prdData.title as string;
-          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', prdData.created_by as string).single();
-          if (ownerData && 'email' in ownerData && 'full_name' in ownerData && ownerData.email !== commenter.email) {
-            resourceOwnerEmail = ownerData.email as string;
-            resourceOwnerName = ownerData.full_name as string;
+        const prd = prdData as any;
+        if (prd && prd.title && prd.created_by) {
+          resourceName = prd.title as string;
+          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', prd.created_by as string).single();
+          const owner = ownerData as any;
+          if (owner && owner.email && owner.full_name && owner.email !== commenter.email) {
+            resourceOwnerEmail = owner.email as string;
+            resourceOwnerName = owner.full_name as string;
           }
         }
       }
