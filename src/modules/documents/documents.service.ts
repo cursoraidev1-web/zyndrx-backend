@@ -27,22 +27,82 @@ export class DocumentService {
   }
 
   static async saveDocumentMetadata(data: any, userId: string, companyId: string) {
+    // Verify user has access to the company before inserting
+    const { data: membership, error: membershipError } = await db
+      .from('user_companies')
+      .select('id, status, role')
+      .eq('company_id', companyId)
+      .eq('user_id', userId)
+      .single();
+
+    if (membershipError || !membership) {
+      logger.error('User company membership check failed', { membershipError, userId, companyId });
+      throw new AppError('You do not have access to this company', 403);
+    }
+
+    if (membership.status !== 'active') {
+      throw new AppError('Your company membership is not active', 403);
+    }
+
     const { data: urlData } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(data.file_path);
     
+    // Ensure all required fields are present
+    const insertData = {
+      project_id: data.project_id,
+      title: data.title || 'Untitled Document',
+      file_url: urlData?.publicUrl || '',
+      file_type: data.file_type || 'application/octet-stream',
+      file_size: data.file_size || 0,
+      uploaded_by: userId,
+      company_id: companyId,
+      tags: data.tags || [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Validate required fields
+    if (!insertData.project_id) {
+      throw new AppError('Project ID is required', 400);
+    }
+    if (!insertData.company_id) {
+      throw new AppError('Company ID is required', 400);
+    }
+    if (!insertData.uploaded_by) {
+      throw new AppError('User ID is required', 400);
+    }
+
+    // Use service role client which should bypass RLS
     const { data: doc, error } = await (db.from('documents') as any)
-      .insert({
-        project_id: data.project_id,
-        title: data.title,
-        file_url: urlData?.publicUrl,
-        file_type: data.file_type,
-        file_size: data.file_size,
-        uploaded_by: userId,
-        company_id: companyId,
-      })
+      .insert(insertData)
       .select('*, uploader:users!documents_uploaded_by_fkey(full_name)')
       .single();
 
-    if (error) throw new AppError(error.message, 500);
+    if (error) {
+      logger.error('Document insert error', { 
+        error: error.message, 
+        errorCode: error.code,
+        errorDetails: error.details,
+        insertData, 
+        userId, 
+        companyId,
+        membership 
+      });
+      
+      // Provide more specific error messages
+      if (error.code === '42501' || error.message?.includes('row-level security')) {
+        throw new AppError(
+          'Permission denied: Unable to create document. Please ensure you are a member of this company.',
+          403
+        );
+      }
+      if (error.code === '23503') {
+        throw new AppError('Invalid project or company reference', 400);
+      }
+      if (error.code === '23505') {
+        throw new AppError('A document with this information already exists', 409);
+      }
+      throw new AppError(error.message || 'Failed to save document metadata', 500);
+    }
 
     // Non-blocking notification
     this.sendDocumentNotification(doc, userId, data.project_id);

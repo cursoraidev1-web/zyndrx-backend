@@ -143,38 +143,53 @@ export class TeamService {
     created_by: string;
   }) {
     try {
-      const { data: team, error } = await (db.from('teams') as any)
+      // Insert team first
+      const { data: team, error } = await db
+        .from('teams')
         .insert({
-          ...data,
+          company_id: data.company_id,
+          name: data.name,
+          description: data.description || null,
+          team_lead_id: data.team_lead_id || null,
+          created_by: data.created_by,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .select(`
-          *,
-          team_lead:users!teams_team_lead_id_fkey (
-            id,
-            full_name,
-            avatar_url,
-            email
-          ),
-          creator:users!teams_created_by_fkey (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
+        .select('*')
         .single();
 
       if (error) {
         if (error.code === '23505') {
           throw new Error('Team name already exists in this company');
         }
-        throw new Error(error.message);
+        logger.error('Create team database error', { error, data });
+        throw new Error(error.message || 'Failed to create team');
       }
 
-      return team;
-    } catch (error) {
-      logger.error('Create team error', { error, data });
+      // Fetch related data separately if needed
+      let teamWithRelations = { ...team };
+      
+      if (team.team_lead_id) {
+        const { data: teamLead } = await db
+          .from('users')
+          .select('id, full_name, avatar_url, email')
+          .eq('id', team.team_lead_id)
+          .single();
+        teamWithRelations.team_lead = teamLead;
+      }
+
+      if (team.created_by) {
+        const { data: creator } = await db
+          .from('users')
+          .select('id, full_name, avatar_url')
+          .eq('id', team.created_by)
+          .single();
+        teamWithRelations.creator = creator;
+      }
+
+      return teamWithRelations;
+    } catch (error: any) {
+      logger.error('Create team error', { error: error.message || error, data });
       throw error;
     }
   }
