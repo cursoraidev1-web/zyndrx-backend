@@ -1,210 +1,131 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../../config/supabase';
-import { Database } from '../../types/database.types';
 import { AppError } from '../../middleware/error.middleware';
+import { EmailService } from '../../utils/email.service';
 import logger from '../../utils/logger';
 
-const db = supabaseAdmin as SupabaseClient<Database>;
+const db = supabaseAdmin;
+
+// Type guards for Supabase responses to prevent 'never' errors
+interface UserRecord { email: string; full_name: string; }
+interface ResourceRecord { title: string; created_by: string; }
 
 export class CommentService {
   
-  // Create comment
-  static async createComment(data: {
-    user_id: string;
-    project_id: string;
-    resource_type: string;
-    resource_id: string;
-    content: string;
-    parent_id?: string;
-  }) {
-    const { data: comment, error } = await (db.from('comments') as any)
-      .insert({
-        ...data,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select(`
-        *,
-        users!comments_user_id_fkey (
-          id,
-          full_name,
-          avatar_url,
-          email
-        )
-      `)
-      .single();
-
-    if (error) {
-      logger.error('Failed to create comment', { error: error.message, data });
-      throw new AppError(`Failed to create comment: ${error.message}`, 500);
-    }
-
-    // Send comment creation email to resource owner
+  static async createComment(data: any, userId: string, companyId: string) {
     try {
-      const commentWithUser = comment as any;
-      const commenter = commentWithUser.users;
-      
-      // Get resource owner based on resource type
-      let resourceOwnerEmail: string | null = null;
-      let resourceOwnerName: string | null = null;
-      let resourceName: string = '';
-      
-      if (data.resource_type === 'task') {
-        const { data: taskData } = await db.from('tasks').select('title, created_by').eq('id', data.resource_id).single();
-        const task = taskData as any;
-        if (task && task.title && task.created_by) {
-          resourceName = task.title as string;
-          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', task.created_by as string).single();
-          const owner = ownerData as any;
-          if (owner && owner.email && owner.full_name && owner.email !== commenter.email) {
-            resourceOwnerEmail = owner.email as string;
-            resourceOwnerName = owner.full_name as string;
-          }
-        }
-      } else if (data.resource_type === 'prd') {
-        const { data: prdData } = await db.from('prds').select('title, created_by').eq('id', data.resource_id).single();
-        const prd = prdData as any;
-        if (prd && prd.title && prd.created_by) {
-          resourceName = prd.title as string;
-          const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', prd.created_by as string).single();
-          const owner = ownerData as any;
-          if (owner && owner.email && owner.full_name && owner.email !== commenter.email) {
-            resourceOwnerEmail = owner.email as string;
-            resourceOwnerName = owner.full_name as string;
-          }
-        }
-      }
+      const { data: comment, error } = await (db.from('comments') as any)
+        .insert({
+          content: data.content,
+          task_id: data.taskId || data.task_id || null,
+          prd_id: data.prdId || data.prd_id || null,
+          user_id: userId,
+          company_id: companyId
+        })
+        .select('*, user:users(full_name, avatar_url)')
+        .single();
 
-      if (resourceOwnerEmail && resourceOwnerName && commenter) {
-        const { EmailService } = await import('../../utils/email.service');
-        await EmailService.sendCommentCreatedEmail(
-          resourceOwnerEmail,
-          resourceOwnerName,
-          commenter.full_name,
-          data.resource_type,
-          resourceName,
-          data.resource_id
-        );
-      }
-    } catch (emailError) {
-      logger.error('Failed to send comment creation email', { error: emailError, commentId: comment.id });
-      // Don't fail comment creation if email fails
+      if (error) throw new AppError('Failed to create comment', 500);
+
+      // Trigger notification (Fire and forget)
+      this.sendCommentNotification(data, userId, companyId);
+
+      return comment;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Create comment error', { error });
+      throw new AppError('Failed to create comment', 500);
     }
-
-    return comment;
   }
 
-  // Get comments for a resource
-  static async getComments(resourceType: string, resourceId: string) {
-    const { data: comments, error } = await db
+  static async getComments(resourceId: string, resourceType: 'task' | 'prd') {
+    const column = resourceType === 'task' ? 'task_id' : 'prd_id';
+    const { data, error } = await db
       .from('comments')
-      .select(`
-        *,
-        users!comments_user_id_fkey (
-          id,
-          full_name,
-          avatar_url,
-          email
-        )
-      `)
-      .eq('resource_type', resourceType)
-      .eq('resource_id', resourceId)
+      .select('*, user:users(full_name, avatar_url)')
+      .eq(column, resourceId)
       .order('created_at', { ascending: true });
 
-    if (error) {
-      logger.error('Failed to fetch comments', { error: error.message, resourceType, resourceId });
-      throw new AppError(`Failed to fetch comments: ${error.message}`, 500);
-    }
+    if (error) throw new AppError('Failed to fetch comments', 500);
+    return data;
+  }
 
-    // Organize comments into threads (parent-child relationships)
-    const commentsMap = new Map();
-    const rootComments: any[] = [];
+  static async updateComment(commentId: string, userId: string, content: string, companyId: string) {
+    const { data, error } = await (db.from('comments') as any)
+      .update({ content, updated_at: new Date().toISOString() })
+      .eq('id', commentId)
+      .eq('user_id', userId)
+      .eq('company_id', companyId)
+      .select('*, user:users(full_name, avatar_url)')
+      .single();
 
-    (comments || []).forEach((comment: any) => {
-      commentsMap.set(comment.id, { ...comment, replies: [] });
-    });
+    if (error || !data) throw new AppError('Failed to update comment or access denied', 500);
+    return data;
+  }
 
-    (comments || []).forEach((comment: any) => {
-      if (comment.parent_id) {
-        const parent = commentsMap.get(comment.parent_id);
-        if (parent) {
-          parent.replies.push(commentsMap.get(comment.id));
+  static async deleteComment(commentId: string, userId: string, companyId: string) {
+    const { error } = await db
+        .from('comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('user_id', userId)
+        .eq('company_id', companyId);
+
+    if (error) throw new AppError('Failed to delete comment', 500);
+  }
+
+  private static async sendCommentNotification(data: any, commenterId: string, companyId: string) {
+    try {
+      // 1. Fetch Commenter
+      const { data: commenterData } = await db.from('users').select('email, full_name').eq('id', commenterId).single();
+      const commenter = commenterData as unknown as UserRecord;
+      if (!commenter) return;
+
+      let resourceOwnerId: string | null = null;
+      let resourceName = '';
+      let resourceType = '';
+
+      const taskId = data.taskId || data.task_id;
+      const prdId = data.prdId || data.prd_id;
+
+      // 2. Handle Task Comment
+      if (taskId) {
+        const { data: taskData } = await db.from('tasks').select('title, created_by').eq('id', taskId).single();
+        const task = taskData as unknown as ResourceRecord;
+        if (task) {
+          resourceName = task.title;
+          resourceOwnerId = task.created_by;
+          resourceType = 'Task';
         }
-      } else {
-        rootComments.push(commentsMap.get(comment.id));
+      } 
+      // 3. Handle PRD Comment
+      else if (prdId) {
+        const { data: prdData } = await db.from('prds').select('title, created_by').eq('id', prdId).single();
+        const prd = prdData as unknown as ResourceRecord;
+        if (prd) {
+          resourceName = prd.title;
+          resourceOwnerId = prd.created_by;
+          resourceType = 'PRD';
+        }
       }
-    });
 
-    return rootComments;
-  }
-
-  // Update comment
-  static async updateComment(commentId: string, userId: string, content: string) {
-    // Verify comment belongs to user
-    const { data: existing, error: fetchError } = await db
-      .from('comments')
-      .select('user_id')
-      .eq('id', commentId)
-      .single();
-
-    if (fetchError || !existing) {
-      throw new AppError('Comment not found', 404);
-    }
-
-    if ((existing as any).user_id !== userId) {
-      throw new AppError('Unauthorized to update this comment', 403);
-    }
-
-    const { data: comment, error } = await (db.from('comments') as any)
-      .update({
-        content,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', commentId)
-      .select(`
-        *,
-        users!comments_user_id_fkey (
-          id,
-          full_name,
-          avatar_url,
-          email
-        )
-      `)
-      .single();
-
-    if (error) {
-      logger.error('Failed to update comment', { error: error.message, commentId });
-      throw new AppError(`Failed to update comment: ${error.message}`, 500);
-    }
-
-    return comment;
-  }
-
-  // Delete comment
-  static async deleteComment(commentId: string, userId: string) {
-    // Verify comment belongs to user
-    const { data: existing, error: fetchError } = await db
-      .from('comments')
-      .select('user_id')
-      .eq('id', commentId)
-      .single();
-
-    if (fetchError || !existing) {
-      throw new AppError('Comment not found', 404);
-    }
-
-    if ((existing as any).user_id !== userId) {
-      throw new AppError('Unauthorized to delete this comment', 403);
-    }
-
-    const { error } = await (db.from('comments') as any)
-      .delete()
-      .eq('id', commentId);
-
-    if (error) {
-      logger.error('Failed to delete comment', { error: error.message, commentId });
-      throw new AppError(`Failed to delete comment: ${error.message}`, 500);
+      // 4. Send Email if owner exists and isn't the commenter
+      if (resourceOwnerId && resourceOwnerId !== commenterId) {
+        const { data: ownerData } = await db.from('users').select('email, full_name').eq('id', resourceOwnerId).single();
+        const owner = ownerData as unknown as UserRecord;
+        
+        if (owner?.email) {
+          await EmailService.sendNewCommentEmail(
+            owner.email,
+            owner.full_name,
+            commenter.full_name,
+            resourceName,
+            resourceType,
+            data.content
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to send comment notification', err);
     }
   }
 }
-
