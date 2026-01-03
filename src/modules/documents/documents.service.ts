@@ -77,9 +77,12 @@ export class DocumentService {
       userId, 
       companyId, 
       projectId: insertData.project_id,
-      hasServiceRoleKey: !!config.supabase.serviceRoleKey 
+      hasServiceRoleKey: !!config.supabase.serviceRoleKey,
+      serviceRoleKeyPrefix: config.supabase.serviceRoleKey?.substring(0, 20) || 'NOT SET'
     });
 
+    // Use direct insert with service role (should bypass RLS)
+    // The migration 027_permanent_fix_service_role_rls.sql ensures service_role can bypass RLS
     const { data: doc, error } = await (db.from('documents') as any)
       .insert(insertData)
       .select('*, uploader:users!documents_uploaded_by_fkey(full_name)')
@@ -119,12 +122,12 @@ Possible Causes:
 1. SUPABASE_SERVICE_ROLE_KEY environment variable is not set or incorrect
 2. The service role key does not match the one in Supabase Dashboard
 3. The backend server needs to be restarted after setting the environment variable
-4. RLS policies need to be updated (run migration 026_fix_service_role_rls_bypass.sql)
+4. RLS policies need to be updated (run migration 027_permanent_fix_service_role_rls.sql)
 
 Action Required:
 1. Verify SUPABASE_SERVICE_ROLE_KEY in backend/.env matches Supabase Dashboard > Settings > API > service_role key
 2. Restart the backend server
-3. Run migration 026_fix_service_role_rls_bypass.sql in Supabase SQL Editor
+3. Run migration 027_permanent_fix_service_role_rls.sql in Supabase SQL Editor
 4. Check backend logs for more details
         `.trim();
         
