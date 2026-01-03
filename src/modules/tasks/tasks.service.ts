@@ -88,7 +88,27 @@ export class TaskService {
         .select('*')
         .single();
 
-      if (error) throw new AppError(`Failed to create task: ${error.message}`, 500);
+      if (error) {
+        logger.error('Task insert error', {
+          error: error.message,
+          errorCode: error.code,
+          errorDetails: error.details,
+          errorHint: error.hint,
+          taskPayload,
+          userId,
+          companyId,
+          projectId: data.project_id
+        });
+
+        // Provide more specific error messages for RLS errors
+        if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('violates row-level security')) {
+          throw new AppError(
+            `Permission denied: Unable to create task. Please ensure you have access to this project. Error: ${error.message}`,
+            403
+          );
+        }
+        throw new AppError(`Failed to create task: ${error.message}`, 500);
+      }
 
       // Trigger email if assigned to someone else
       if (task.assigned_to && task.assigned_to !== userId) {

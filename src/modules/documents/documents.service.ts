@@ -96,13 +96,48 @@ export class DocumentService {
         companyId,
         membership,
         serviceRoleKeySet: !!config.supabase.serviceRoleKey,
-        serviceRoleKeyLength: config.supabase.serviceRoleKey?.length || 0
+        serviceRoleKeyLength: config.supabase.serviceRoleKey?.length || 0,
+        serviceRoleKeyPrefix: config.supabase.serviceRoleKey?.substring(0, 20) || 'NOT SET'
       });
       
       // Provide more specific error messages
       if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('violates row-level security')) {
+        const diagnosticMessage = `
+RLS Policy Violation Detected.
+
+This error indicates that Row-Level Security (RLS) is blocking the operation even though the service role should bypass RLS.
+
+Diagnostics:
+- Service Role Key Set: ${!!config.supabase.serviceRoleKey ? 'YES' : 'NO'}
+- Service Role Key Length: ${config.supabase.serviceRoleKey?.length || 0}
+- User ID: ${userId}
+- Company ID: ${companyId}
+- Project ID: ${insertData.project_id}
+- User Membership Status: ${membership ? (membership as any).status : 'NOT FOUND'}
+
+Possible Causes:
+1. SUPABASE_SERVICE_ROLE_KEY environment variable is not set or incorrect
+2. The service role key does not match the one in Supabase Dashboard
+3. The backend server needs to be restarted after setting the environment variable
+4. RLS policies need to be updated (run migration 026_fix_service_role_rls_bypass.sql)
+
+Action Required:
+1. Verify SUPABASE_SERVICE_ROLE_KEY in backend/.env matches Supabase Dashboard > Settings > API > service_role key
+2. Restart the backend server
+3. Run migration 026_fix_service_role_rls_bypass.sql in Supabase SQL Editor
+4. Check backend logs for more details
+        `.trim();
+        
+        logger.error('RLS Policy Violation', {
+          error: error.message,
+          diagnosticMessage,
+          insertData,
+          userId,
+          companyId
+        });
+        
         throw new AppError(
-          `RLS Error: ${error.message}. Service role should bypass RLS. Please verify SUPABASE_SERVICE_ROLE_KEY is set correctly.`,
+          `Permission denied: Unable to create document. Please contact your administrator. Error: ${error.message}`,
           403
         );
       }
