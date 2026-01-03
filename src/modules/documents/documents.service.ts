@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../../config/supabase';
+import { config } from '../../config';
 import { Database } from '../../types/database.types';
 import { SubscriptionService } from '../subscriptions/subscriptions.service';
 import { AppError } from '../../middleware/error.middleware';
@@ -46,7 +47,7 @@ export class DocumentService {
     const { data: urlData } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(data.file_path);
     
     // Ensure all required fields are present
-    const insertData = {
+    const insertData: any = {
       project_id: data.project_id,
       title: data.title || 'Untitled Document',
       file_url: urlData?.publicUrl || '',
@@ -71,6 +72,14 @@ export class DocumentService {
     }
 
     // Use service role client which should bypass RLS
+    // Verify we're using service role (should have service_role key, not anon key)
+    logger.debug('Inserting document with service role', { 
+      userId, 
+      companyId, 
+      projectId: insertData.project_id,
+      hasServiceRoleKey: !!config.supabase.serviceRoleKey 
+    });
+
     const { data: doc, error } = await (db.from('documents') as any)
       .insert(insertData)
       .select('*, uploader:users!documents_uploaded_by_fkey(full_name)')
@@ -81,16 +90,19 @@ export class DocumentService {
         error: error.message, 
         errorCode: error.code,
         errorDetails: error.details,
+        errorHint: error.hint,
         insertData, 
         userId, 
         companyId,
-        membership 
+        membership,
+        serviceRoleKeySet: !!config.supabase.serviceRoleKey,
+        serviceRoleKeyLength: config.supabase.serviceRoleKey?.length || 0
       });
       
       // Provide more specific error messages
-      if (error.code === '42501' || error.message?.includes('row-level security')) {
+      if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('violates row-level security')) {
         throw new AppError(
-          'Permission denied: Unable to create document. Please ensure you are a member of this company.',
+          `RLS Error: ${error.message}. Service role should bypass RLS. Please verify SUPABASE_SERVICE_ROLE_KEY is set correctly.`,
           403
         );
       }

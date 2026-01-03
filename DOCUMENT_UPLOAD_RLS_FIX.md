@@ -70,29 +70,31 @@ VALUES ('USER_ID', 'COMPANY_ID', 'admin', 'active')
 ON CONFLICT (user_id, company_id) DO UPDATE SET status = 'active';
 ```
 
-### Step 4: Verify Storage Bucket RLS
+### Step 4: Fix Storage Bucket RLS (IMPORTANT)
 
-Ensure storage bucket policies allow uploads:
+The storage bucket RLS policy must allow authenticated users to upload. Run this SQL:
 
 ```sql
--- Check storage policies
-SELECT * FROM pg_policies 
-WHERE tablename = 'objects' 
-AND schemaname = 'storage'
-AND policyname LIKE '%documents%';
-
--- If needed, recreate upload policy:
+-- Drop existing upload policy
 DROP POLICY IF EXISTS "Allow authenticated users to upload documents" ON storage.objects;
 
+-- Create simplified upload policy
+-- This allows any authenticated user to upload to the documents bucket
+-- Security is enforced by the backend API which validates company membership
 CREATE POLICY "Allow authenticated users to upload documents"
 ON storage.objects
 FOR INSERT
 TO authenticated
 WITH CHECK (
   bucket_id = 'documents'
-  AND (storage.foldername(name))[1] IS NOT NULL
 );
 ```
+
+**Why this works:**
+- The backend API validates company membership before generating upload paths
+- The upload path structure ({company_id}/{project_id}/...) ensures organization
+- The documents table RLS policy prevents unauthorized access to metadata
+- This policy is intentionally permissive for uploads; security is at the API layer
 
 ### Step 5: Test Upload
 

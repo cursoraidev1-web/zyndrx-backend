@@ -16,14 +16,13 @@ DROP POLICY IF EXISTS "Allow document owners to delete documents" ON storage.obj
 -- Upload Policy: Authenticated users can upload documents
 -- Path structure: {company_id}/{project_id}/{timestamp}-{filename}
 -- This policy allows any authenticated user to upload to the documents bucket
--- The path structure ensures files are organized by company/project
+-- Security is enforced by the backend API which validates company membership before generating upload paths
 CREATE POLICY "Allow authenticated users to upload documents"
 ON storage.objects
 FOR INSERT
 TO authenticated
 WITH CHECK (
   bucket_id = 'documents'
-  AND (storage.foldername(name))[1] IS NOT NULL  -- Ensure path has at least one folder level
 );
 
 -- Read Policy: Authenticated users can read documents
