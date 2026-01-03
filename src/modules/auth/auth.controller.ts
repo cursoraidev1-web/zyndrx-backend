@@ -273,4 +273,19 @@ export class AuthController {
 
     return ResponseHandler.created(res, result, 'User created successfully');
   });
+
+  // POST /api/v1/auth/resend-verification
+  resendVerification = asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) {
+      return ResponseHandler.error(res, 'Email is required', 400);
+    }
+
+    logger.info('Resend verification email request', { email });
+
+    const result = await authService.resendVerificationEmail(email);
+
+    return ResponseHandler.success(res, result, result.message);
+  });
 }

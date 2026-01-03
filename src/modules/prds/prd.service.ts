@@ -237,4 +237,104 @@ export class PrdService {
       await (db.from('tasks') as any).insert(tasksToInsert);
     }
   }
+
+  // PRD Sections Management
+  static async addPRDSection(prdId: string, companyId: string, section: { id?: string; title: string; content: string }) {
+    const prd = await this.getPRDById(prdId, companyId);
+    const content = (prd as any).content as any;
+    
+    const sections = content?.sections || [];
+    const newSection = {
+      id: section.id || `section-${Date.now()}`,
+      title: section.title,
+      content: section.content || ''
+    };
+    
+    const updatedContent = {
+      ...content,
+      sections: [...sections, newSection]
+    };
+
+    return await this.updatePRD(prdId, { content: updatedContent }, companyId);
+  }
+
+  static async updatePRDSection(prdId: string, companyId: string, sectionId: string, updates: { title?: string; content?: string }) {
+    const prd = await this.getPRDById(prdId, companyId);
+    const content = (prd as any).content as any;
+    
+    const sections = content?.sections || [];
+    const sectionIndex = sections.findIndex((s: any) => s.id === sectionId);
+    
+    if (sectionIndex === -1) {
+      throw new AppError('Section not found', 404);
+    }
+
+    sections[sectionIndex] = {
+      ...sections[sectionIndex],
+      ...updates
+    };
+
+    const updatedContent = {
+      ...content,
+      sections
+    };
+
+    return await this.updatePRD(prdId, { content: updatedContent }, companyId);
+  }
+
+  static async deletePRDSection(prdId: string, companyId: string, sectionId: string) {
+    const prd = await this.getPRDById(prdId, companyId);
+    const content = (prd as any).content as any;
+    
+    const sections = content?.sections || [];
+    const filteredSections = sections.filter((s: any) => s.id !== sectionId);
+
+    if (sections.length === filteredSections.length) {
+      throw new AppError('Section not found', 404);
+    }
+
+    const updatedContent = {
+      ...content,
+      sections: filteredSections
+    };
+
+    return await this.updatePRD(prdId, { content: updatedContent }, companyId);
+  }
+
+  // PRD Assignees Management (stored in content JSONB for now, can be migrated to separate table later)
+  static async addPRDAssignee(prdId: string, companyId: string, userId: string) {
+    const prd = await this.getPRDById(prdId, companyId);
+    const content = (prd as any).content as any;
+    
+    const assignees = content?.assignees || [];
+    if (assignees.includes(userId)) {
+      throw new AppError('User is already assigned to this PRD', 400);
+    }
+
+    const updatedContent = {
+      ...content,
+      assignees: [...assignees, userId]
+    };
+
+    return await this.updatePRD(prdId, { content: updatedContent }, companyId);
+  }
+
+  static async removePRDAssignee(prdId: string, companyId: string, userId: string) {
+    const prd = await this.getPRDById(prdId, companyId);
+    const content = (prd as any).content as any;
+    
+    const assignees = content?.assignees || [];
+    const filteredAssignees = assignees.filter((id: string) => id !== userId);
+
+    if (assignees.length === filteredAssignees.length) {
+      throw new AppError('User is not assigned to this PRD', 404);
+    }
+
+    const updatedContent = {
+      ...content,
+      assignees: filteredAssignees
+    };
+
+    return await this.updatePRD(prdId, { content: updatedContent }, companyId);
+  }
 }

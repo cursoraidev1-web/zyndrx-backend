@@ -137,5 +137,74 @@ export const rejectHandoff = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+// Handoff Comments
+export const getHandoffComments = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user!.companyId;
+
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const comments = await HandoffService.getHandoffComments(id, companyId);
+    return ResponseHandler.success(res, comments, 'Handoff comments fetched successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addHandoffComment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+    const { comment } = req.body;
+
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    if (!comment || typeof comment !== 'string' || comment.trim().length === 0) {
+      return ResponseHandler.error(res, 'Comment content is required', 400);
+    }
+
+    const newComment = await HandoffService.addHandoffComment(id, userId, companyId, comment);
+    return ResponseHandler.created(res, newComment, 'Comment added successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Handoff Attachments
+export const uploadHandoffAttachment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+    const { file_name, file_path, file_url, file_type, file_size } = req.body;
+
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    if (!file_name || !file_path || !file_url || !file_type || !file_size) {
+      return ResponseHandler.error(res, 'All file metadata fields are required', 400);
+    }
+
+    const { HandoffAttachmentService } = await import('./handoff-attachments.service');
+    const attachment = await HandoffAttachmentService.saveAttachment(
+      id,
+      { file_name, file_path, file_url, file_type, file_size },
+      userId,
+      companyId
+    );
+
+    return ResponseHandler.created(res, attachment, 'Attachment uploaded successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 

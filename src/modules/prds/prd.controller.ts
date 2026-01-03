@@ -193,3 +193,92 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
     next(error);
   }
 };
+
+// PRD Sections
+export const addPRDSection = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user!.companyId || req.companyId;
+    const { title, content, id: sectionId } = req.body;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const prd = await PrdService.addPRDSection(id, companyId, { id: sectionId, title, content });
+    return ResponseHandler.success(res, prd, 'Section added successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updatePRDSection = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, sectionId } = req.params;
+    const companyId = req.user!.companyId || req.companyId;
+    const { title, content } = req.body;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const prd = await PrdService.updatePRDSection(id, companyId, sectionId, { title, content });
+    return ResponseHandler.success(res, prd, 'Section updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deletePRDSection = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, sectionId } = req.params;
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const prd = await PrdService.deletePRDSection(id, companyId, sectionId);
+    return ResponseHandler.success(res, prd, 'Section deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PRD Assignees
+export const addPRDAssignee = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user!.companyId || req.companyId;
+    const { userId } = req.body;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    if (!userId) {
+      return ResponseHandler.error(res, 'User ID is required', 400);
+    }
+
+    const prd = await PrdService.addPRDAssignee(id, companyId, userId);
+    return ResponseHandler.success(res, prd, 'Assignee added successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const removePRDAssignee = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, userId } = req.params;
+    const companyId = req.user!.companyId || req.companyId;
+    
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const prd = await PrdService.removePRDAssignee(id, companyId, userId);
+    return ResponseHandler.success(res, prd, 'Assignee removed successfully');
+  } catch (error) {
+    next(error);
+  }
+};

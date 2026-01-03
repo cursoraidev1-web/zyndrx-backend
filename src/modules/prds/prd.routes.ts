@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createPrd, getPrd, getPrds, updatePrd, deletePrd, updateStatus, createPrdVersion, getPrdVersions } from './prd.controller';
+import { createPrd, getPrd, getPrds, updatePrd, deletePrd, updateStatus, createPrdVersion, getPrdVersions, addPRDSection, updatePRDSection, deletePRDSection, addPRDAssignee, removePRDAssignee } from './prd.controller';
 import { createPrdSchema, updatePrdSchema, updatePrdStatusSchema, createPrdVersionSchema } from './prd.validation';
 import { authenticate, authorize } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validation.middleware';
@@ -65,6 +65,38 @@ router.get(
   '/:id/versions',
   authenticate,
   getPrdVersions
+);
+
+// 9. PRD Sections Management
+router.post(
+  '/:id/sections',
+  authenticate,
+  addPRDSection
+);
+
+router.patch(
+  '/:id/sections/:sectionId',
+  authenticate,
+  updatePRDSection
+);
+
+router.delete(
+  '/:id/sections/:sectionId',
+  authenticate,
+  deletePRDSection
+);
+
+// 10. PRD Assignees Management
+router.post(
+  '/:id/assignees',
+  authenticate,
+  addPRDAssignee
+);
+
+router.delete(
+  '/:id/assignees/:userId',
+  authenticate,
+  removePRDAssignee
 );
 
 export default router;

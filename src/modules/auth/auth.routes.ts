@@ -77,6 +77,13 @@ router.post('/forgot-password', validate(forgotPasswordSchema), authController.f
 router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
 
 /**
+ * @route   POST /api/v1/auth/resend-verification
+ * @desc    Resend email verification
+ * @access  Public
+ */
+router.post('/resend-verification', authController.resendVerification);
+
+/**
  * @route   GET /api/v1/auth/me
  * @desc    Get current user profile
  * @access  Private (requires token)

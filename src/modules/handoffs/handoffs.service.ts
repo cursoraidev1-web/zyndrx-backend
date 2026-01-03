@@ -382,6 +382,82 @@ export class HandoffService {
       throw new AppError('Failed to reject handoff', 500);
     }
   }
+
+  // Get handoff comments (using comments table with resource_type='handoff')
+  static async getHandoffComments(handoffId: string, companyId: string) {
+    try {
+      // Verify handoff exists
+      await this.getHandoffById(handoffId, companyId);
+
+      const { data: comments, error } = await db
+        .from('comments')
+        .select(`
+          *,
+          user:users!comments_user_id_fkey (
+            id,
+            full_name,
+            avatar_url,
+            email
+          )
+        `)
+        .eq('resource_type', 'handoff')
+        .eq('resource_id', handoffId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        logger.error('Failed to fetch handoff comments', { error: error.message, handoffId });
+        throw new AppError(`Failed to fetch handoff comments: ${error.message}`, 500);
+      }
+
+      return comments || [];
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Get handoff comments error', { error, handoffId });
+      throw new AppError('Failed to fetch handoff comments', 500);
+    }
+  }
+
+  // Add handoff comment
+  static async addHandoffComment(handoffId: string, userId: string, companyId: string, content: string) {
+    try {
+      // Verify handoff exists
+      const handoff = await this.getHandoffById(handoffId, companyId);
+      const handoffData = handoff as any;
+
+      const { data: comment, error } = await (db.from('comments') as any)
+        .insert({
+          resource_type: 'handoff',
+          resource_id: handoffId,
+          project_id: handoffData.project_id,
+          user_id: userId,
+          company_id: companyId,
+          content,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select(`
+          *,
+          user:users!comments_user_id_fkey (
+            id,
+            full_name,
+            avatar_url,
+            email
+          )
+        `)
+        .single();
+
+      if (error) {
+        logger.error('Failed to add handoff comment', { error: error.message, handoffId });
+        throw new AppError(`Failed to add handoff comment: ${error.message}`, 500);
+      }
+
+      return comment;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Add handoff comment error', { error, handoffId });
+      throw new AppError('Failed to add handoff comment', 500);
+    }
+  }
 }
 
 

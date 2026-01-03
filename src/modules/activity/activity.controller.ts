@@ -25,5 +25,37 @@ export const getActivityFeed = async (req: Request, res: Response, next: NextFun
   }
 };
 
+export const createActivity = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+    const { project_id, type, action, resource_type, resource_id, title, metadata } = req.body;
+
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    if (!type || !action || !resource_type || !resource_id || !title) {
+      return ResponseHandler.error(res, 'Missing required fields: type, action, resource_type, resource_id, title', 400);
+    }
+
+    const activity = await ActivityService.createActivity({
+      companyId,
+      projectId: project_id,
+      userId,
+      type,
+      action,
+      resourceType: resource_type,
+      resourceId: resource_id,
+      title,
+      metadata
+    });
+
+    return ResponseHandler.created(res, activity, 'Activity created successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 

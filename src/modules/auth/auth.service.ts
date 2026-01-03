@@ -99,6 +99,19 @@ export class AuthService {
 
       logger.info('Auth user created successfully', { userId: authData.user.id, email: data.email });
 
+      // Send verification email
+      try {
+        // Use inviteUser to send verification email (doesn't require password)
+        const { error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+          redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
+        });
+        if (emailError) {
+          logger.warn('Failed to send verification email during registration', { error: emailError });
+        }
+      } catch (emailErr) {
+        logger.warn('Error sending verification email', { error: emailErr });
+      }
+
       // Sync Profile - Wait for trigger to create user profile
       let user = null;
       logger.info('Checking for user profile from trigger', { userId: authData.user.id });
@@ -860,5 +873,79 @@ export class AuthService {
     });
 
     return sessions;
+  }
+
+  // Resend verification email
+  async resendVerificationEmail(email: string): Promise<{ success: boolean; message: string }> {
+    try {
+      logger.info('Resend verification email request', { email });
+
+      // Check if user exists
+      const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      if (listError) {
+        logger.error('Failed to list users', { error: listError });
+        throw new AppError('Failed to check user', 500);
+      }
+
+      const foundUser = users?.users?.find(u => u.email === email);
+
+      if (!foundUser) {
+        // Don't reveal if user exists or not (security best practice)
+        logger.warn('Resend verification requested for non-existent email', { email });
+        return {
+          success: true,
+          message: 'If an account exists with this email, a verification email has been sent.'
+        };
+      }
+
+      // Check if already verified
+      if (foundUser.email_confirmed_at) {
+        logger.info('User already verified', { email });
+        return {
+          success: true,
+          message: 'This email is already verified.'
+        };
+      }
+
+      // Generate verification link using magic link
+      // For unverified users, we can use inviteUserByEmail which sends a confirmation email
+      const { data: inviteData, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
+        data: {
+          resend_verification: true
+        }
+      });
+
+      if (error) {
+        // If inviteUserByEmail fails (user already exists), try generating a magic link
+        try {
+          const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'magiclink',
+            email: email,
+            options: {
+              redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
+            }
+          });
+          
+          if (linkError) {
+            logger.error('Failed to resend verification email', { error: linkError.message, email });
+            throw new AppError('Failed to send verification email', 500);
+          }
+        } catch (linkErr: any) {
+          logger.error('Failed to resend verification email', { error: linkErr.message || linkErr, email });
+          throw new AppError('Failed to send verification email', 500);
+        }
+      }
+
+      logger.info('Verification email sent successfully', { email });
+      return {
+        success: true,
+        message: 'Verification email sent. Please check your inbox.'
+      };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Resend verification email error', { error, email });
+      throw new AppError('Failed to send verification email', 500);
+    }
   }
 }

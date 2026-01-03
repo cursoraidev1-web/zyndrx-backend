@@ -7,6 +7,9 @@ import {
   deleteHandoff,
   approveHandoff,
   rejectHandoff,
+  getHandoffComments,
+  addHandoffComment,
+  uploadHandoffAttachment,
 } from './handoffs.controller';
 import { createHandoffSchema, updateHandoffSchema, rejectHandoffSchema } from './handoffs.validation';
 import { authenticate } from '../../middleware/auth.middleware';
@@ -36,6 +39,15 @@ router.post('/:id/approve', approveHandoff);
 
 // POST /api/v1/handoffs/:id/reject - Reject handoff
 router.post('/:id/reject', validate(rejectHandoffSchema), rejectHandoff);
+
+// GET /api/v1/handoffs/:id/comments - Get handoff comments
+router.get('/:id/comments', getHandoffComments);
+
+// POST /api/v1/handoffs/:id/comments - Add handoff comment
+router.post('/:id/comments', addHandoffComment);
+
+// POST /api/v1/handoffs/:id/attachments - Upload handoff attachment
+router.post('/:id/attachments', uploadHandoffAttachment);
 
 export default router;
 
