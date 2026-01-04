@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { CompanyController } from './companies.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validation.middleware';
-import { createCompanySchema } from './companies.validation';
+import { createCompanySchema, inviteUserSchema, updateMemberRoleSchema } from './companies.validation';
 
 const router = Router();
 const companyController = new CompanyController();
@@ -36,14 +36,14 @@ router.get('/:id/members', companyController.getMembers);
  * @desc    Invite user to company
  * @access  Private
  */
-router.post('/:id/invite', companyController.inviteUser);
+router.post('/:id/invite', validate(inviteUserSchema), companyController.inviteUser);
 
 /**
  * @route   PATCH /api/v1/companies/:id/members/:userId
  * @desc    Update member role
  * @access  Private
  */
-router.patch('/:id/members/:userId', companyController.updateMemberRole);
+router.patch('/:id/members/:userId', validate(updateMemberRoleSchema), companyController.updateMemberRole);
 
 /**
  * @route   DELETE /api/v1/companies/:id/members/:userId

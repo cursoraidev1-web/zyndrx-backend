@@ -101,3 +101,4 @@ If the error persists:
 3. Verify user has active company membership
 4. Ensure all migrations have been run
 
+

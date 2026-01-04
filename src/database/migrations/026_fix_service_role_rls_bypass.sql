@@ -56,3 +56,4 @@ END $$;
 -- 3. Verify supabaseAdmin client uses serviceRoleKey (check config/supabase.ts)
 -- 4. Restart the backend server after setting the environment variable
 
+

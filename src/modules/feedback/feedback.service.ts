@@ -163,20 +163,22 @@ export class FeedbackService {
         throw new AppError('Feedback not found', 404);
       }
 
+      const existingData = existing as any;
+      
       // Check if the user is an admin of the company associated with the feedback
       let isAdmin = false;
-      if (existing.company_id) {
+      if (existingData.company_id) {
         const { data: membership } = await db
           .from('user_companies')
           .select('role')
-          .eq('company_id', existing.company_id)
+          .eq('company_id', existingData.company_id)
           .eq('user_id', userId)
           .single() as any;
         isAdmin = membership?.role === 'admin';
       }
 
       // Only allow updating if user is admin OR if it's the owner and status is pending
-      if (!isAdmin && (existing.user_id !== userId || existing.status !== 'pending')) {
+      if (!isAdmin && (existingData.user_id !== userId || existingData.status !== 'pending')) {
         throw new AppError('Unauthorized to update feedback status', 403);
       }
 
@@ -185,12 +187,14 @@ export class FeedbackService {
         updated_at: new Date().toISOString(),
       };
 
+      // Note: resolved_at and resolved_by columns don't exist in schema
+      // If needed, add them via migration. For now, store in metadata
       if (status === 'resolved' || status === 'closed') {
-        updatePayload.resolved_at = new Date().toISOString();
-        updatePayload.resolved_by = userId;
-      } else {
-        updatePayload.resolved_at = null;
-        updatePayload.resolved_by = null;
+        updatePayload.metadata = {
+          ...(existingData.metadata || {}),
+          resolved_at: new Date().toISOString(),
+          resolved_by: userId
+        };
       }
 
       const { data: feedback, error } = await (db.from('feedback') as any)

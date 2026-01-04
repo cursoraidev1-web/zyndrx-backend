@@ -27,3 +27,4 @@ WHERE name = 'documents';
 -- After creating the bucket, run migration 028_fix_storage_bucket_rls_complete.sql
 -- to set up the RLS policies.
 
+

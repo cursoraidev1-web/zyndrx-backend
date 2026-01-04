@@ -215,3 +215,4 @@ If the error persists after following all steps:
 - `backend/src/database/migrations/026_fix_service_role_rls_bypass.sql` - RLS bypass migration
 - `backend/src/modules/documents/documents.service.ts` - Example service with RLS error handling
 
+

@@ -213,3 +213,4 @@ If you're still having issues after following all steps:
 
 **This fix is permanent and comprehensive. It should resolve all RLS issues with the service role.**
 
+
