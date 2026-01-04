@@ -43,3 +43,4 @@ END $$;
 -- 2. The service role key matches the one in Supabase Dashboard > Settings > API
 -- 3. The supabaseAdmin client is using the service role key (check config/supabase.ts)
 
+
