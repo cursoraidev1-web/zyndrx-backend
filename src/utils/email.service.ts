@@ -230,6 +230,17 @@ export class EmailService {
     }
 
     try {
+      // Verify connection before sending
+      logger.info('Verifying SMTP connection...', {
+        host: config.email.smtp.host,
+        port: config.email.smtp.port,
+        secure: config.email.smtp.secure,
+      });
+
+      await mailTransporter.verify();
+
+      logger.info('SMTP connection verified successfully');
+
       const emailData = {
         from: config.email.fromAddress,
         to,
@@ -272,19 +283,25 @@ export class EmailService {
       });
       
       // Provide more helpful error messages
-      if (error.code === 'EAUTH' || error.message?.includes('Invalid login')) {
-        throw new Error('Email sending failed: Invalid Gmail credentials. Please check your GMAIL_USER and GMAIL_APP_PASSWORD. Make sure you\'re using an App Password, not your regular Gmail password.');
+      if (error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('authentication')) {
+        throw new Error('Email sending failed: Invalid Gmail credentials. Please check your GMAIL_USER and GMAIL_APP_PASSWORD. Make sure you\'re using an App Password (not your regular password) and that 2-Step Verification is enabled.');
       }
       
-      if (error.code === 'ECONNECTION' || error.message?.includes('connection')) {
-        throw new Error('Email sending failed: Could not connect to Gmail SMTP server. Please check your network connection and SMTP settings.');
+      if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('connection') || error.message?.includes('timeout')) {
+        const portSuggestion = config.email.smtp.port === 587 ? '465' : '587';
+        const secureSuggestion = !config.email.smtp.secure;
+        throw new Error(`Email sending failed: Connection timeout. Could not connect to Gmail SMTP server. Try changing SMTP_PORT to ${portSuggestion} and SMTP_SECURE to ${String(secureSuggestion).toLowerCase()} in your environment variables. Also check if your firewall/network allows SMTP connections.`);
+      }
+
+      if (error.code === 'ESOCKET' || error.message?.includes('socket')) {
+        throw new Error('Email sending failed: Socket error. The SMTP port might be blocked by your firewall or network. Try using port 465 with SMTP_SECURE=true.');
       }
 
       if (error.message?.includes('rate limit') || error.message?.includes('429')) {
-        throw new Error('Email sending failed: Rate limit exceeded. Gmail has limits on the number of emails you can send. Please try again later.');
+        throw new Error('Email sending failed: Rate limit exceeded. Gmail has limits on the number of emails you can send (500/day for free accounts, 2000/day for Workspace). Please try again later.');
       }
 
-      throw new Error(`Failed to send email: ${error.message || 'Unknown error'}`);
+      throw new Error(`Failed to send email: ${error.message || error.code || 'Unknown error'}`);
     }
   }
 }
