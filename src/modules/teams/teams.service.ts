@@ -1,13 +1,12 @@
 import crypto from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Resend } from 'resend'; 
 import supabase from '../../config/supabase';
 import { Database } from '../../types/database.types';
 import { PRICING_LIMITS, PlanType } from '../../config/pricing';
+import { EmailService } from '../../utils/email.service';
 import logger from '../../utils/logger';
 
 const db = supabase as SupabaseClient<Database>;
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export class TeamService {
   
@@ -65,24 +64,23 @@ export class TeamService {
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const inviteLink = `${baseUrl}/accept-invite?token=${token}`;
 
-    if (resend) {
-      try {
-        await resend.emails.send({
-          from: 'Zyndrx <team@zyndrx.com>', 
-          to: email,
-          subject: 'Join your team on Zyndrx',
-          html: `
-            <p>You have been invited to join a project on Zyndrx.</p>
-            <p><a href="${inviteLink}"><strong>Click here to accept invite</strong></a></p>
-            <p>This link expires in 7 days.</p>
-          `
-        });
-        logger.info('Email sent successfully', { email });
-      } catch (emailError) {
-        logger.error('Failed to send email', { email, error: emailError });
-      }
-    } else {
-      logger.info('Email mock (no API key)', { email, inviteLink });
+    // Send invitation email via EmailService
+    try {
+      const subject = 'Join your team on Zyndrx';
+      const html = `
+        <h2>Project Invitation</h2>
+        <p>You have been invited to join a project on Zyndrx.</p>
+        <p><a href="${inviteLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Accept Invitation</a></p>
+        <p>This link expires in 7 days.</p>
+        <p>If the button doesn't work, copy and paste this link into your browser:</p>
+        <p>${inviteLink}</p>
+      `;
+      
+      await EmailService.sendEmail(email, subject, html);
+      logger.info('Invitation email sent successfully', { email });
+    } catch (emailError: any) {
+      logger.error('Failed to send invitation email', { email, error: emailError?.message });
+      // Don't fail the invite if email fails
     }
 
     return { invite, link: inviteLink };

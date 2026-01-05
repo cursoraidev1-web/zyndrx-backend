@@ -38,7 +38,7 @@ export class EmailService {
   /**
    * Send email via Gmail SMTP
    */
-  private static async sendEmail(to: string, subject: string, html: string) {
+  static async sendEmail(to: string, subject: string, html: string) {
     const mailTransporter = createTransporter();
     
     if (!mailTransporter) {
