@@ -3,6 +3,7 @@ import { config } from './index';
 import { Database } from '../types/database.types';
  
 // Service role client (for admin operations, bypasses RLS)
+// IMPORTANT: This MUST use the service_role key, not the anon key
 export const supabaseAdmin: SupabaseClient<Database> = createClient<Database>(
   config.supabase.url,
   config.supabase.serviceRoleKey,
@@ -10,6 +11,13 @@ export const supabaseAdmin: SupabaseClient<Database> = createClient<Database>(
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    // Explicitly set headers to ensure service role is used
+    global: {
+      headers: {
+        'apikey': config.supabase.serviceRoleKey,
+        'Authorization': `Bearer ${config.supabase.serviceRoleKey}`,
+      },
     },
   }
 );
