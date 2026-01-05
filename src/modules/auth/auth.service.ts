@@ -10,6 +10,7 @@ import logger from '../../utils/logger';
 import { CompanyService } from '../companies/companies.service';
 import { SubscriptionService } from '../subscriptions/subscriptions.service';
 import { SecurityService } from '../../services/security.service';
+import { insertUserWithServiceRole } from '../../utils/supabase-admin-insert';
 
 // Type helpers for Supabase queries
 type UserRow = Database['public']['Tables']['users']['Row'];
@@ -130,12 +131,47 @@ export class AuthService {
       // Fallback manual creation if trigger didn't fire
       if (!user) {
         logger.info('Trigger did not create user profile, creating manually', { userId: authData.user.id });
-        const { data: manualUser, error: manualError } = await (supabaseAdmin.from('users') as any).insert({
+        
+        // Log service role configuration for debugging
+        logger.info('Service role check', {
+          hasServiceRoleKey: !!config.supabase.serviceRoleKey,
+          serviceRoleKeyLength: config.supabase.serviceRoleKey?.length || 0,
+          supabaseUrl: config.supabase.url,
+        });
+        
+        // Try using Supabase client first
+        let manualUser = null;
+        let manualError = null;
+        
+        const { data: clientUser, error: clientError } = await (supabaseAdmin.from('users') as any).insert({
           id: authData.user.id,
           email: data.email,
           full_name: data.fullName,
           role: data.role || 'developer'
         }).select().single();
+        
+        if (clientError && (clientError.code === '42501' || clientError.message?.includes('row-level security'))) {
+          // RLS error - try using REST API directly with service role key
+          logger.warn('RLS error with Supabase client, trying REST API with service role', {
+            error: clientError.message,
+          });
+          
+          const restResult = await insertUserWithServiceRole({
+            id: authData.user.id,
+            email: data.email,
+            full_name: data.fullName,
+            role: data.role || 'developer',
+          });
+          
+          if (restResult.error) {
+            manualError = restResult.error;
+          } else {
+            manualUser = restResult.data;
+          }
+        } else {
+          manualUser = clientUser;
+          manualError = clientError;
+        }
         
         if (manualError || !manualUser) {
           logger.error('Failed to create user profile manually', {
@@ -145,7 +181,10 @@ export class AuthService {
             errorDetails: manualError?.details,
             errorHint: manualError?.hint,
             userId: authData.user.id,
-            email: data.email
+            email: data.email,
+            // Additional debugging info
+            serviceRoleConfigured: !!config.supabase.serviceRoleKey,
+            rlsError: manualError?.code === '42501' || manualError?.message?.includes('row-level security'),
           });
           // Clean up auth user if profile creation fails
           try {
