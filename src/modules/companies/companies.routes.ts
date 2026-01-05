@@ -1,14 +1,16 @@
 import { Router } from 'express';
 import { CompanyController } from './companies.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 import { createCompanySchema, inviteUserSchema, updateMemberRoleSchema } from './companies.validation';
 
 const router = Router();
 const companyController = new CompanyController();
 
-// All routes require authentication
+// All routes require authentication and are rate limited per user
 router.use(authenticate);
+router.use(userRateLimiter);
 
 /**
  * @route   GET /api/v1/companies/:id

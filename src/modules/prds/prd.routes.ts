@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createPrd, getPrd, getPrds, updatePrd, deletePrd, updateStatus, createPrdVersion, getPrdVersions, addPRDSection, updatePRDSection, deletePRDSection, addPRDAssignee, removePRDAssignee } from './prd.controller';
 import { createPrdSchema, updatePrdSchema, updatePrdStatusSchema, createPrdVersionSchema } from './prd.validation';
 import { authenticate, authorize } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 
 const router = Router();
@@ -10,6 +11,7 @@ const router = Router();
 router.get(
   '/',
   authenticate,
+  userRateLimiter,
   getPrds
 );
 
@@ -17,6 +19,7 @@ router.get(
 router.post(
   '/', 
   authenticate, 
+  userRateLimiter,
   validate(createPrdSchema), 
   createPrd
 );
@@ -25,6 +28,7 @@ router.post(
 router.get(
   '/:id', 
   authenticate, 
+  userRateLimiter,
   getPrd
 );
 
@@ -32,6 +36,7 @@ router.get(
 router.patch(
   '/:id',
   authenticate,
+  userRateLimiter,
   validate(updatePrdSchema),
   updatePrd
 );
@@ -40,6 +45,7 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
+  userRateLimiter,
   deletePrd
 );
 
@@ -47,6 +53,7 @@ router.delete(
 router.patch(
   '/:id/status', 
   authenticate, 
+  userRateLimiter,
   authorize(['admin']), 
   validate(updatePrdStatusSchema), 
   updateStatus
@@ -56,6 +63,7 @@ router.patch(
 router.post(
   '/:id/versions',
   authenticate,
+  userRateLimiter,
   validate(createPrdVersionSchema),
   createPrdVersion
 );
@@ -64,6 +72,7 @@ router.post(
 router.get(
   '/:id/versions',
   authenticate,
+  userRateLimiter,
   getPrdVersions
 );
 
@@ -71,18 +80,21 @@ router.get(
 router.post(
   '/:id/sections',
   authenticate,
+  userRateLimiter,
   addPRDSection
 );
 
 router.patch(
   '/:id/sections/:sectionId',
   authenticate,
+  userRateLimiter,
   updatePRDSection
 );
 
 router.delete(
   '/:id/sections/:sectionId',
   authenticate,
+  userRateLimiter,
   deletePRDSection
 );
 
@@ -90,12 +102,14 @@ router.delete(
 router.post(
   '/:id/assignees',
   authenticate,
+  userRateLimiter,
   addPRDAssignee
 );
 
 router.delete(
   '/:id/assignees/:userId',
   authenticate,
+  userRateLimiter,
   removePRDAssignee
 );
 

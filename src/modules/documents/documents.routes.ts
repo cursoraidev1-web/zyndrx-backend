@@ -9,6 +9,7 @@ import {
   deleteDocument
 } from './documents.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 import { 
   uploadTokenSchema, 
@@ -19,6 +20,7 @@ import {
 
 const router = Router();
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // POST /api/v1/documents/upload-token - Request upload permission
 router.post('/upload-token', validate(uploadTokenSchema), requestUploadToken);

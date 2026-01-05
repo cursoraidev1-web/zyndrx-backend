@@ -216,3 +216,4 @@ If the error persists after following all steps:
 - `backend/src/modules/documents/documents.service.ts` - Example service with RLS error handling
 
 
+

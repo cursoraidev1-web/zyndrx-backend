@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { config } from './config';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
-import { rateLimiter } from './middleware/rate-limit.middleware';
+import { rateLimiter, userRateLimiter } from './middleware/rate-limit.middleware';
 import { sanitizeInput } from './middleware/sanitize.middleware';
 import logger from './utils/logger';
 
@@ -123,6 +123,8 @@ class App {
     }
 
     // Rate limiting
+    // Apply per-user rate limiting for authenticated routes (after auth middleware)
+    // IP-based rate limiting is applied globally for unauthenticated requests
     this.app.use(rateLimiter);
   }
 

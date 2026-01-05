@@ -11,8 +11,56 @@ interface RateLimitStore {
  
 const store: RateLimitStore = {};
 const registrationStore: RateLimitStore = {};
+const userStore: RateLimitStore = {}; // Per-user rate limiting store
+
+// PER-USER RATE LIMITER (for authenticated requests)
+// Default: 60 requests per minute per user
+export const userRateLimiter = (req: Request, res: Response, next: NextFunction) => {
+  // Only apply to authenticated users
+  if (!req.user || !req.user.id) {
+    // If not authenticated, fall back to IP-based limiting
+    return rateLimiter(req, res, next);
+  }
+
+  const userId = req.user.id;
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = parseInt(process.env.RATE_LIMIT_PER_USER_PER_MINUTE || '60', 10); // Default: 60 requests per minute
+
+  // First request from this user
+  if (!userStore[userId]) {
+    userStore[userId] = {
+      count: 1,
+      resetTime: now + windowMs,
+    };
+    return next();
+  }
+
+  const record = userStore[userId];
+
+  // Time window expired, reset counter
+  if (now > record.resetTime) {
+    record.count = 1;
+    record.resetTime = now + windowMs;
+    return next();
+  }
+
+  // Check if limit exceeded
+  if (record.count >= maxRequests) {
+    logger.warn('User rate limit exceeded', { userId, count: record.count, email: req.user.email });
+    return res.status(429).json({
+      success: false,
+      error: 'Too many requests. Please limit your requests to 60 per minute.',
+      retryAfter: Math.ceil((record.resetTime - now) / 1000), // seconds
+    });
+  }
+
+  // Increment counter and allow
+  record.count++;
+  next();
+};
  
-// RATE LIMITER
+// IP-BASED RATE LIMITER (for unauthenticated requests)
 // Default: 100 requests per 15 minutes per IP
 export const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
   // Identify user by IP address
@@ -105,6 +153,12 @@ setInterval(() => {
   Object.keys(registrationStore).forEach((key) => {
     if (now > registrationStore[key].resetTime + 15 * 60 * 1000) {
       delete registrationStore[key];
+    }
+  });
+  // Cleanup user store (entries older than 2 minutes)
+  Object.keys(userStore).forEach((key) => {
+    if (now > userStore[key].resetTime + 60 * 1000) {
+      delete userStore[key];
     }
   });
 }, config.rateLimit.windowMs);

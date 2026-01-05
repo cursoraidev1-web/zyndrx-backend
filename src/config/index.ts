@@ -67,6 +67,7 @@ const envSchema = z.object({
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.string().default('900000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().default('100'),
+  RATE_LIMIT_PER_USER_PER_MINUTE: z.string().default('60'), // Per-user per-minute limit
 });
  
 // Validate and parse environment variables

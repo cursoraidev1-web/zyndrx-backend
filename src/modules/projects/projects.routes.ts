@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { createProject, getMyProjects, getProjectDetails, updateProject, deleteProject, getProjectMembers, addProjectMember, removeProjectMember } from './projects.controller';
 import { createProjectSchema, updateProjectSchema, addProjectMemberSchema } from './projects.validation';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 
 const router = Router();
 
-// Apply Auth to all project routes
+// Apply Auth and rate limiting to all project routes
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // POST /api/v1/projects - Create
 router.post('/', validate(createProjectSchema), createProject);

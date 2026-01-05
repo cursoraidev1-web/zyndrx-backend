@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { getActivityFeed, createActivity } from './activity.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // GET /api/v1/activity?project_id=...&user_id=...&type=...&limit=...
 router.get('/', getActivityFeed);

@@ -13,11 +13,13 @@ import {
 } from './handoffs.controller';
 import { createHandoffSchema, updateHandoffSchema, rejectHandoffSchema } from './handoffs.validation';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // GET /api/v1/handoffs - List handoffs (with optional filters)
 router.get('/', getHandoffs);

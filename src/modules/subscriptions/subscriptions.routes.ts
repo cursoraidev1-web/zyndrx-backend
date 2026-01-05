@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { SubscriptionController } from './subscriptions.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 
 const router = Router();
 const subscriptionController = new SubscriptionController();
 
-// All routes require authentication
+// All routes require authentication and are rate limited per user
 router.use(authenticate);
+router.use(userRateLimiter);
 
 /**
  * @route   GET /api/v1/subscription

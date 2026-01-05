@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getTasks, getAllTasks, getTask, createTask, updateTask, deleteTask } from './tasks.controller';
 import { createTaskSchema, updateTaskSchema } from './tasks.validation';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 import {
   requestUploadToken,
@@ -15,6 +16,7 @@ import { uploadTokenSchema, saveAttachmentSchema } from './task-attachments.vali
 const router = Router();
 
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // List tasks (Pass ?project_id=UUID) or get all tasks for company/user
 router.get('/', (req, res, next) => {

@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { CommentController } from './comments.controller';
 import { createCommentSchema, updateCommentSchema } from './comments.validation';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // Use the class methods directly
 router.get('/', CommentController.getComments);

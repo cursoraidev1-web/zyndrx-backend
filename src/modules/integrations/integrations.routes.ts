@@ -8,12 +8,14 @@ import {
   syncIntegration
 } from './integrations.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 import { connectIntegrationSchema, updateIntegrationConfigSchema } from './integrations.validation';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // GET /api/v1/integrations - List all available integrations with connection status
 router.get('/', getIntegrations);

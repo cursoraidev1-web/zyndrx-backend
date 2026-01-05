@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AuthController } from './auth.controller';
 import { validate } from '../../middleware/validation.middleware';
 import { authenticate } from '../../middleware/auth.middleware';
-import { registrationRateLimiter } from '../../middleware/rate-limit.middleware';
+import { registrationRateLimiter, userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { CompanyController } from '../companies/companies.controller';
 import {
   registerSchema,
@@ -88,35 +88,35 @@ router.post('/resend-verification', authController.resendVerification);
  * @desc    Get current user profile
  * @access  Private (requires token)
  */
-router.get('/me', authenticate, authController.getCurrentUser);
+router.get('/me', authenticate, userRateLimiter, authController.getCurrentUser);
 
 /**
  * @route   PUT /api/v1/auth/profile
  * @desc    Update user profile
  * @access  Private
  */
-router.put('/profile', authenticate, validate(updateProfileSchema), authController.updateProfile);
+router.put('/profile', authenticate, userRateLimiter, validate(updateProfileSchema), authController.updateProfile);
 
 /**
  * @route   POST /api/v1/auth/change-password
  * @desc    Change user password (requires current password)
  * @access  Private
  */
-router.post('/change-password', authenticate, validate(changePasswordSchema), authController.changePassword);
+router.post('/change-password', authenticate, userRateLimiter, validate(changePasswordSchema), authController.changePassword);
 
 /**
  * @route   GET /api/v1/auth/sessions
  * @desc    Get active sessions for current user
  * @access  Private
  */
-router.get('/sessions', authenticate, authController.getActiveSessions);
+router.get('/sessions', authenticate, userRateLimiter, authController.getActiveSessions);
 
 /**
  * @route   POST /api/v1/auth/logout
  * @desc    Logout user
  * @access  Private 
  */
-router.post('/logout', authenticate, authController.logout);
+router.post('/logout', authenticate, userRateLimiter, authController.logout);
 
 /* -------------------------------------------------------------------------- */
 /* 2FA ENDPOINTS                                                              */
@@ -127,14 +127,14 @@ router.post('/logout', authenticate, authController.logout);
  * @desc    Step 1: Generate Secret & QR Code URL
  * @access  Private (User must be logged in to turn this on)
  */
-router.post('/2fa/setup', authenticate, authController.setup2FA);
+router.post('/2fa/setup', authenticate, userRateLimiter, authController.setup2FA);
 
 /**
  * @route   POST /api/v1/auth/2fa/enable
  * @desc    Step 2: Verify first code and enable 2FA permanently
  * @access  Private
  */
-router.post('/2fa/enable', authenticate, validate(verify2FASchema), authController.enable2FA);
+router.post('/2fa/enable', authenticate, userRateLimiter, validate(verify2FASchema), authController.enable2FA);
 
 /**
  * @route   POST /api/v1/auth/2fa/verify
@@ -148,7 +148,7 @@ router.post('/2fa/verify', validate(login2FASchema), authController.verify2FALog
  * @desc    Get user's companies
  * @access  Private
  */
-router.get('/companies', authenticate, companyController.getMyCompanies);
+router.get('/companies', authenticate, userRateLimiter, companyController.getMyCompanies);
 
 /**
  * @route   POST /api/v1/auth/switch-company
@@ -156,13 +156,13 @@ router.get('/companies', authenticate, companyController.getMyCompanies);
  * @access  Private
  * @body    { company_id: string }
  */
-router.post('/switch-company', authenticate, validate(switchCompanySchema), companyController.switchCompany);
+router.post('/switch-company', authenticate, userRateLimiter, validate(switchCompanySchema), companyController.switchCompany);
 
 /**
  * @route   POST /api/v1/auth/users/:companyId
  * @desc    Create user in company (Admin only)
  * @access  Private (Admin only)
  */
-router.post('/users/:companyId', authenticate, validate(createUserSchema), authController.createUser);
+router.post('/users/:companyId', authenticate, userRateLimiter, validate(createUserSchema), authController.createUser);
 
 export default router;

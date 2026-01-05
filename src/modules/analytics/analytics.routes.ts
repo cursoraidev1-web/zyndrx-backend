@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { getStats, getKPIs, getProjectProgress, getTeamPerformance, getTaskAnalytics } from './analytics.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 
 const router = Router();
 router.use(authenticate);
+router.use(userRateLimiter);
 
 // GET /api/v1/analytics?project_id=... - Get full analytics
 router.get('/', getStats);

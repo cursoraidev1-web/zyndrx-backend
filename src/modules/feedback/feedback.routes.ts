@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { FeedbackController } from './feedback.controller';
 import { authenticate } from '../../middleware/auth.middleware';
+import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
 import { createFeedbackSchema, updateFeedbackStatusSchema } from './feedback.validation';
 
@@ -9,6 +10,7 @@ const feedbackController = new FeedbackController();
 
 // All routes require authentication
 router.use(authenticate);
+router.use(userRateLimiter);
 
 /**
  * @route   POST /api/v1/feedback
