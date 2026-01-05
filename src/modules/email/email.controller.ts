@@ -63,18 +63,29 @@ export class EmailController {
       }
 
       // Send test email using the public test method
-      await EmailService.sendTestEmail(to, subject, emailHtml || '<p>Test email</p>');
+      const emailResult = await EmailService.sendTestEmail(to, subject, emailHtml || '<p>Test email</p>');
 
       logger.info('Test email sent', { 
         to, 
         subject, 
         userId: req.user.id,
-        template: template || 'custom'
+        template: template || 'custom',
+        emailId: emailResult?.id
       });
 
       return ResponseHandler.success(
         res,
-        { to, subject, sent: true },
+        { 
+          to, 
+          subject, 
+          sent: true,
+          messageId: emailResult?.id,
+          accepted: emailResult?.accepted,
+          rejected: emailResult?.rejected,
+          message: emailResult?.id 
+            ? 'Test email sent successfully via Gmail SMTP. Check your inbox (and spam folder).' 
+            : 'Test email queued for sending. Check your inbox (and spam folder).'
+        },
         'Test email sent successfully'
       );
     } catch (error: any) {

@@ -1,34 +1,76 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { config } from '../config';
 import logger from './logger';
 
-const resend = config.email.resendApiKey ? new Resend(config.email.resendApiKey) : null;
 const baseUrl = config.frontend.url;
 
+// Create reusable transporter for Gmail SMTP
+let transporter: nodemailer.Transporter | null = null;
+
+const createTransporter = (): nodemailer.Transporter | null => {
+  if (!config.email.gmailUser || !config.email.gmailAppPassword) {
+    logger.warn('Gmail SMTP not configured - GMAIL_USER or GMAIL_APP_PASSWORD is missing');
+    return null;
+  }
+
+  if (transporter) {
+    return transporter;
+  }
+
+  transporter = nodemailer.createTransport({
+    host: config.email.smtp.host,
+    port: config.email.smtp.port,
+    secure: config.email.smtp.secure, // true for 465, false for other ports
+    auth: {
+      user: config.email.gmailUser,
+      pass: config.email.gmailAppPassword, // Gmail App Password
+    },
+  });
+
+  return transporter;
+};
+
 /**
- * Centralized email service for sending transactional emails
+ * Centralized email service for sending transactional emails via Gmail SMTP
  */
 export class EmailService {
   
   /**
-   * Send email via Resend
+   * Send email via Gmail SMTP
    */
   private static async sendEmail(to: string, subject: string, html: string) {
-    if (!resend) {
-      logger.info('Email mock (no API key)', { to, subject });
+    const mailTransporter = createTransporter();
+    
+    if (!mailTransporter) {
+      logger.info('Email mock (no SMTP config)', { to, subject });
+      return;
+    }
+
+    if (!config.email.fromAddress) {
+      logger.warn('Email from address not configured', { to, subject });
       return;
     }
 
     try {
-      await resend.emails.send({
+      const info = await mailTransporter.sendMail({
         from: config.email.fromAddress,
         to,
         subject,
         html,
       });
-      logger.info('Email sent successfully', { to, subject });
-    } catch (error) {
-      logger.error('Failed to send email', { to, subject, error });
+
+      logger.info('Email sent successfully', { 
+        to, 
+        subject, 
+        messageId: info.messageId 
+      });
+    } catch (error: any) {
+      logger.error('Failed to send email', { 
+        to, 
+        subject, 
+        error: error.message,
+        errorCode: error.code 
+      });
     }
   }
 
@@ -105,7 +147,6 @@ export class EmailService {
 
   /**
    * Send comment notification email
-   * ✅ FIX: Re-added this missing method
    */
   static async sendNewCommentEmail(email: string, fullName: string, commenterName: string, resourceName: string, resourceType: string, content: string) {
     const subject = `New comment on ${resourceType}: ${resourceName}`;
@@ -120,7 +161,6 @@ export class EmailService {
 
   /**
    * Send document creation notification email
-   * ✅ FIX: Re-added this missing method
    */
   static async sendDocumentCreatedEmail(email: string, fullName: string, documentTitle: string, projectName: string, projectId: string) {
     const subject = `New document uploaded: ${documentTitle}`;
@@ -164,23 +204,74 @@ export class EmailService {
    * Send test email (public method for testing)
    */
   static async sendTestEmail(to: string, subject: string, html: string) {
-    if (!resend) {
-      logger.info('Email mock (no API key) - Test email', { to, subject });
-      throw new Error('Email service is not configured. RESEND_API_KEY is missing.');
+    const mailTransporter = createTransporter();
+    
+    if (!mailTransporter) {
+      logger.warn('Email service not configured - GMAIL_USER or GMAIL_APP_PASSWORD is missing', { to, subject });
+      throw new Error('Email service is not configured. GMAIL_USER and GMAIL_APP_PASSWORD are required. Please configure them in your environment variables.');
+    }
+
+    if (!config.email.fromAddress) {
+      logger.warn('Email from address not configured - EMAIL_FROM is missing', { to, subject });
+      throw new Error('Email from address is not configured. EMAIL_FROM environment variable is required.');
     }
 
     try {
-      const result = await resend.emails.send({
+      const emailData = {
         from: config.email.fromAddress,
         to,
         subject,
         html,
+      };
+
+      logger.info('Attempting to send test email via Gmail SMTP', { 
+        to, 
+        subject, 
+        from: config.email.fromAddress,
+        smtpHost: config.email.smtp.host,
+        smtpPort: config.email.smtp.port,
       });
-      logger.info('Test email sent successfully', { to, subject, result });
-      return result;
+
+      const result = await mailTransporter.sendMail(emailData);
+      
+      logger.info('Test email sent successfully via Gmail SMTP', { 
+        to, 
+        subject, 
+        messageId: result.messageId,
+        response: result.response,
+      });
+
+      return {
+        id: result.messageId,
+        accepted: result.accepted,
+        rejected: result.rejected,
+        response: result.response,
+      };
     } catch (error: any) {
-      logger.error('Failed to send test email', { to, subject, error: error.message });
-      throw error;
+      logger.error('Failed to send test email via Gmail SMTP', { 
+        to, 
+        subject, 
+        from: config.email.fromAddress,
+        error: error.message,
+        errorCode: error.code,
+        errorCommand: error.command,
+        stack: error.stack
+      });
+      
+      // Provide more helpful error messages
+      if (error.code === 'EAUTH' || error.message?.includes('Invalid login')) {
+        throw new Error('Email sending failed: Invalid Gmail credentials. Please check your GMAIL_USER and GMAIL_APP_PASSWORD. Make sure you\'re using an App Password, not your regular Gmail password.');
+      }
+      
+      if (error.code === 'ECONNECTION' || error.message?.includes('connection')) {
+        throw new Error('Email sending failed: Could not connect to Gmail SMTP server. Please check your network connection and SMTP settings.');
+      }
+
+      if (error.message?.includes('rate limit') || error.message?.includes('429')) {
+        throw new Error('Email sending failed: Rate limit exceeded. Gmail has limits on the number of emails you can send. Please try again later.');
+      }
+
+      throw new Error(`Failed to send email: ${error.message || 'Unknown error'}`);
     }
   }
 }

@@ -39,8 +39,9 @@ const envSchema = z.object({
   // Frontend redirect URL (for OAuth callbacks)
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
  
-  // Email
-  RESEND_API_KEY: z.string().optional(),
+  // Email (Gmail SMTP)
+  GMAIL_USER: z.string().email().optional(),
+  GMAIL_APP_PASSWORD: z.string().optional(),
   EMAIL_FROM: z.preprocess(
     (val) => (val === '' || val === undefined ? undefined : val),
     z.string()
@@ -55,6 +56,10 @@ const envSchema = z.object({
       )
       .default('noreply@zyndrx.com')
   ),
+  // SMTP Settings (optional, defaults to Gmail)
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.string().default('587'),
+  SMTP_SECURE: z.string().default('false'), // 'true' for SSL (port 465), 'false' for TLS (port 587)
 
   // Push Notifications (VAPID keys)
   VAPID_PUBLIC_KEY: z.string().optional(),
@@ -123,8 +128,14 @@ export const config = {
     url: env.FRONTEND_URL,
   },
   email: {
-    resendApiKey: env.RESEND_API_KEY,
+    gmailUser: env.GMAIL_USER,
+    gmailAppPassword: env.GMAIL_APP_PASSWORD,
     fromAddress: env.EMAIL_FROM,
+    smtp: {
+      host: env.SMTP_HOST,
+      port: parseInt(env.SMTP_PORT, 10),
+      secure: env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    },
   },
   push: {
     vapidPublicKey: env.VAPID_PUBLIC_KEY,
