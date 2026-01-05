@@ -69,15 +69,43 @@ SMTP_SECURE=false
 
 ## Troubleshooting
 
-### Error: "Invalid login"
+### Error: "Invalid login" or "Authentication failed"
 - Verify you're using an App Password, not your regular password
 - Make sure 2-Step Verification is enabled
 - Regenerate the App Password if needed
+- Ensure GMAIL_USER matches the email address associated with the App Password
 
-### Error: "Connection timeout"
-- Check your firewall settings
-- Verify SMTP_HOST and SMTP_PORT are correct
-- Try using port 465 with SMTP_SECURE=true
+### Error: "Connection timeout" or "ECONNECTION"
+This is the most common issue. Try these solutions in order:
+
+**Solution 1: Switch to Port 465 (SSL)**
+```env
+SMTP_PORT=465
+SMTP_SECURE=true
+```
+
+**Solution 2: If Port 465 doesn't work, try Port 587 (TLS)**
+```env
+SMTP_PORT=587
+SMTP_SECURE=false
+```
+
+**Solution 3: Check Firewall/Network**
+- If deploying on Render, Vercel, or similar platforms, they may block SMTP ports
+- Consider using a service like SendGrid, Mailgun, or AWS SES instead
+- Some corporate networks block SMTP ports
+
+**Solution 4: Verify Gmail Settings**
+- Make sure "Less secure app access" is NOT enabled (it's deprecated)
+- Ensure 2-Step Verification is enabled
+- Verify the App Password was generated correctly
+
+**Solution 5: Use a Different SMTP Provider**
+If Gmail SMTP continues to have issues, consider:
+- **SendGrid**: Free tier (100 emails/day)
+- **Mailgun**: Free tier (5,000 emails/month)
+- **AWS SES**: Very affordable, pay-as-you-go
+- **Postmark**: Great deliverability, paid service
 
 ### Emails not being received
 - Check spam/junk folder

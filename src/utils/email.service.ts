@@ -8,8 +8,8 @@ const baseUrl = config.frontend.url;
 let transporter: nodemailer.Transporter | null = null;
 
 const createTransporter = (): nodemailer.Transporter | null => {
-  if (!config.email.gmailUser || !config.email.gmailAppPassword) {
-    logger.warn('Gmail SMTP not configured - GMAIL_USER or GMAIL_APP_PASSWORD is missing');
+  if (!config.email.smtpUser || !config.email.smtpPassword) {
+    logger.warn('SMTP not configured - SMTP_USER/SMTP_PASSWORD or GMAIL_USER/GMAIL_APP_PASSWORD is missing');
     return null;
   }
 
@@ -22,8 +22,8 @@ const createTransporter = (): nodemailer.Transporter | null => {
     port: config.email.smtp.port,
     secure: config.email.smtp.secure, // true for 465, false for other ports
     auth: {
-      user: config.email.gmailUser,
-      pass: config.email.gmailAppPassword, // Gmail App Password
+      user: config.email.smtpUser,
+      pass: config.email.smtpPassword,
     },
     connectionTimeout: 10000, // 10 seconds
     greetingTimeout: 10000, // 10 seconds
@@ -220,8 +220,8 @@ export class EmailService {
     const mailTransporter = createTransporter();
     
     if (!mailTransporter) {
-      logger.warn('Email service not configured - GMAIL_USER or GMAIL_APP_PASSWORD is missing', { to, subject });
-      throw new Error('Email service is not configured. GMAIL_USER and GMAIL_APP_PASSWORD are required. Please configure them in your environment variables.');
+      logger.warn('Email service not configured - SMTP_USER/SMTP_PASSWORD or GMAIL_USER/GMAIL_APP_PASSWORD is missing', { to, subject });
+      throw new Error('Email service is not configured. SMTP_USER and SMTP_PASSWORD (or GMAIL_USER and GMAIL_APP_PASSWORD) are required. Please configure them in your environment variables.');
     }
 
     if (!config.email.fromAddress) {
@@ -248,17 +248,18 @@ export class EmailService {
         html,
       };
 
-      logger.info('Attempting to send test email via Gmail SMTP', { 
+      logger.info('Attempting to send test email via SMTP', { 
         to, 
         subject, 
         from: config.email.fromAddress,
         smtpHost: config.email.smtp.host,
         smtpPort: config.email.smtp.port,
+        smtpSecure: config.email.smtp.secure,
       });
 
       const result = await mailTransporter.sendMail(emailData);
       
-      logger.info('Test email sent successfully via Gmail SMTP', { 
+      logger.info('Test email sent successfully via SMTP', { 
         to, 
         subject, 
         messageId: result.messageId,
@@ -272,7 +273,7 @@ export class EmailService {
         response: result.response,
       };
     } catch (error: any) {
-      logger.error('Failed to send test email via Gmail SMTP', { 
+      logger.error('Failed to send test email via SMTP', { 
         to, 
         subject, 
         from: config.email.fromAddress,
@@ -288,9 +289,7 @@ export class EmailService {
       }
       
       if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('connection') || error.message?.includes('timeout')) {
-        const portSuggestion = config.email.smtp.port === 587 ? '465' : '587';
-        const secureSuggestion = !config.email.smtp.secure;
-        throw new Error(`Email sending failed: Connection timeout. Could not connect to Gmail SMTP server. Try changing SMTP_PORT to ${portSuggestion} and SMTP_SECURE to ${String(secureSuggestion).toLowerCase()} in your environment variables. Also check if your firewall/network allows SMTP connections.`);
+        throw new Error(`Email sending failed: Connection timeout. Your hosting platform (Render/Vercel/etc.) likely blocks SMTP ports. Gmail SMTP doesn't work on most cloud platforms. Please use SendGrid, Mailgun, or AWS SES instead. See GMAIL_SMTP_SETUP.md for alternatives.`);
       }
 
       if (error.code === 'ESOCKET' || error.message?.includes('socket')) {

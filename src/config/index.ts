@@ -39,9 +39,9 @@ const envSchema = z.object({
   // Frontend redirect URL (for OAuth callbacks)
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
  
-  // Email (Gmail SMTP)
-  GMAIL_USER: z.string().email().optional(),
-  GMAIL_APP_PASSWORD: z.string().optional(),
+  // Email (SMTP - supports Gmail, SendGrid, Mailgun, AWS SES, etc.)
+  SMTP_USER: z.string().optional(), // Gmail: your email, SendGrid: 'apikey', Mailgun: your username
+  SMTP_PASSWORD: z.string().optional(), // Gmail: App Password, SendGrid: API key, Mailgun: password
   EMAIL_FROM: z.preprocess(
     (val) => (val === '' || val === undefined ? undefined : val),
     z.string()
@@ -56,10 +56,14 @@ const envSchema = z.object({
       )
       .default('noreply@zyndrx.com')
   ),
-  // SMTP Settings (optional, defaults to Gmail)
+  // SMTP Settings (supports any SMTP provider)
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.string().default('587'),
   SMTP_SECURE: z.string().default('false'), // 'true' for SSL (port 465), 'false' for TLS (port 587)
+  
+  // Legacy Gmail support (for backward compatibility)
+  GMAIL_USER: z.string().email().optional(),
+  GMAIL_APP_PASSWORD: z.string().optional(),
 
   // Push Notifications (VAPID keys)
   VAPID_PUBLIC_KEY: z.string().optional(),
@@ -128,8 +132,9 @@ export const config = {
     url: env.FRONTEND_URL,
   },
   email: {
-    gmailUser: env.GMAIL_USER,
-    gmailAppPassword: env.GMAIL_APP_PASSWORD,
+    // Use SMTP_USER/SMTP_PASSWORD if provided, otherwise fall back to GMAIL_USER/GMAIL_APP_PASSWORD for backward compatibility
+    smtpUser: env.SMTP_USER || env.GMAIL_USER,
+    smtpPassword: env.SMTP_PASSWORD || env.GMAIL_APP_PASSWORD,
     fromAddress: env.EMAIL_FROM,
     smtp: {
       host: env.SMTP_HOST,
