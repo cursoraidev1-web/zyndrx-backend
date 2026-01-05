@@ -27,22 +27,41 @@ SendGrid is recommended for cloud platforms like Render, Vercel, Railway, etc., 
 
 ## Step 3: Verify Sender Identity
 
+**You have two options:**
+
+### Option A: Single Sender Verification (Recommended for Quick Start) ✅
+
+**No domain needed** - just verify an email address:
+
 1. Go to **Settings** → **Sender Authentication**
-2. Choose one:
-   - **Single Sender Verification** (quick, for testing)
-   - **Domain Authentication** (better for production)
+2. Click **Verify a Single Sender**
+3. Fill in your details:
+   - **From Email Address**: Your email (e.g., `noreply@yourdomain.com` or `yourname@gmail.com`)
+   - **From Name**: Your name or company name
+   - **Reply To**: Same or different email
+   - **Company Address**: Your address
+4. Click **Create**
+5. **Check your email** and click the verification link SendGrid sends you
+6. Once verified, use this email as your `EMAIL_FROM`
 
-### Single Sender Verification (Quick Setup)
-1. Click **Verify a Single Sender**
-2. Fill in your details
-3. Verify the email address they send you
-4. Use this email as your `EMAIL_FROM`
+**That's it!** You can start sending emails immediately. No domain setup required.
 
-### Domain Authentication (Production)
-1. Click **Authenticate Your Domain**
-2. Follow the DNS setup instructions
-3. Add the DNS records to your domain
-4. Wait for verification (can take up to 48 hours)
+### Option B: Domain Authentication (Optional, for Production)
+
+Only needed if you want:
+- Better deliverability
+- To send from any email on your domain (e.g., `support@yourdomain.com`, `noreply@yourdomain.com`)
+- Professional appearance
+
+**Steps:**
+1. Go to **Settings** → **Sender Authentication**
+2. Click **Authenticate Your Domain**
+3. Enter your domain name
+4. Follow the DNS setup instructions
+5. Add the DNS records to your domain's DNS settings
+6. Wait for verification (can take up to 48 hours)
+
+**Note:** You can use Single Sender Verification forever - domain authentication is optional.
 
 ## Step 4: Configure Environment Variables
 
@@ -55,13 +74,13 @@ SMTP_PASSWORD=your-sendgrid-api-key-here
 SMTP_HOST=smtp.sendgrid.net
 SMTP_PORT=587
 SMTP_SECURE=false
-EMAIL_FROM=verified-email@yourdomain.com
+EMAIL_FROM=your-verified-email@example.com
 ```
 
 **Important:**
 - `SMTP_USER` must be exactly `apikey` (lowercase)
 - `SMTP_PASSWORD` is your SendGrid API key
-- `EMAIL_FROM` must be a verified sender in SendGrid
+- `EMAIL_FROM` must be the email address you verified in Step 3 (can be Gmail, your domain, etc.)
 
 ## Step 5: Test
 
