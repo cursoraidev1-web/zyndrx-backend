@@ -25,6 +25,19 @@ const createTransporter = (): nodemailer.Transporter | null => {
       user: config.email.gmailUser,
       pass: config.email.gmailAppPassword, // Gmail App Password
     },
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000, // 10 seconds
+    socketTimeout: 10000, // 10 seconds
+    tls: {
+      // Do not fail on invalid certs
+      rejectUnauthorized: false,
+      // Use TLS 1.2 or higher
+      minVersion: 'TLSv1.2',
+    },
+    // For port 587 (TLS)
+    requireTLS: !config.email.smtp.secure,
+    // For port 465 (SSL)
+    ignoreTLS: config.email.smtp.secure,
   });
 
   return transporter;
