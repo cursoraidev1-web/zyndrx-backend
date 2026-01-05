@@ -159,4 +159,28 @@ export class EmailService {
     `;
     await this.sendEmail(email, subject, html);
   }
+
+  /**
+   * Send test email (public method for testing)
+   */
+  static async sendTestEmail(to: string, subject: string, html: string) {
+    if (!resend) {
+      logger.info('Email mock (no API key) - Test email', { to, subject });
+      throw new Error('Email service is not configured. RESEND_API_KEY is missing.');
+    }
+
+    try {
+      const result = await resend.emails.send({
+        from: config.email.fromAddress,
+        to,
+        subject,
+        html,
+      });
+      logger.info('Test email sent successfully', { to, subject, result });
+      return result;
+    } catch (error: any) {
+      logger.error('Failed to send test email', { to, subject, error: error.message });
+      throw error;
+    }
+  }
 }

@@ -229,22 +229,73 @@ export class AuthService {
         logger.info('Company invitation accepted', { companyId: (company as any).id, userId: user.id });
       } else {
         // Create company for the user (subscription is created automatically in createCompany)
-        if (!data.companyName) {
-          throw new AppError('Company name is required for new registrations', 400);
+        // If no company name provided, generate a default one
+        let companyName = data.companyName?.trim() || '';
+        
+        // If company name is empty or only whitespace, generate a default one
+        if (!companyName) {
+          const userName = (data.fullName || user.full_name || 'User').trim();
+          companyName = userName ? `${userName}'s Workspace` : 'My Workspace';
         }
 
-        logger.info('Creating company for user', { userId: user.id, companyName: data.companyName });
-        company = await CompanyService.createCompany({
-          name: data.companyName,
-          userId: user.id,
-        });
-
-        if (!company || !company.id) {
-          logger.error('Company validation failed - company is null or missing id', { company, userId: user.id });
-          throw new AppError('Company creation failed - company data is invalid', 500);
+        // Final validation - ensure company name is not empty
+        if (!companyName || !companyName.trim()) {
+          companyName = 'My Workspace';
         }
 
-        logger.info('Company created successfully', { companyId: company.id, userId: user.id });
+        logger.info('Creating company for user', { userId: user.id, companyName });
+        
+        try {
+          company = await CompanyService.createCompany({
+            name: companyName.trim(),
+            userId: user.id,
+          });
+
+          if (!company || !company.id) {
+            logger.error('Company validation failed - company is null or missing id', { company, userId: user.id });
+            throw new AppError('Company creation failed - company data is invalid', 500);
+          }
+
+          logger.info('Company created successfully', { companyId: company.id, userId: user.id });
+        } catch (companyError) {
+          // Rollback: Delete user if company creation fails
+          logger.error('Company creation failed, rolling back user creation', {
+            error: companyError,
+            userId: user.id,
+            email: data.email,
+          });
+
+          // Delete user profile
+          try {
+            await supabaseAdmin.from('users').delete().eq('id', user.id);
+            logger.info('User profile deleted during rollback', { userId: user.id });
+          } catch (deleteUserError) {
+            logger.error('Failed to delete user profile during rollback', {
+              error: deleteUserError,
+              userId: user.id,
+            });
+          }
+
+          // Delete auth user
+          try {
+            await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+            logger.info('Auth user deleted during rollback', { userId: authData.user.id });
+          } catch (deleteAuthError) {
+            logger.error('Failed to delete auth user during rollback', {
+              error: deleteAuthError,
+              userId: authData.user.id,
+            });
+          }
+
+          // Re-throw the original error
+          if (companyError instanceof AppError) {
+            throw companyError;
+          }
+          throw new AppError(
+            companyError instanceof Error ? companyError.message : 'Company creation failed',
+            500
+          );
+        }
       }
 
       // Get user's companies

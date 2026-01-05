@@ -27,6 +27,7 @@ import handoffRoutes from './modules/handoffs/handoffs.routes';
 import feedbackRoutes from './modules/feedback/feedback.routes';
 import activityRoutes from './modules/activity/activity.routes';
 import integrationRoutes from './modules/integrations/integrations.routes';
+import emailRoutes from './modules/email/email.routes';
 
 class App {
   public app: Application;
@@ -160,6 +161,7 @@ class App {
     this.app.use(`${apiPrefix}/feedback`, feedbackRoutes);
     this.app.use(`${apiPrefix}/activity`, activityRoutes);
     this.app.use(`${apiPrefix}/integrations`, integrationRoutes);
+    this.app.use(`${apiPrefix}/email`, emailRoutes);
 
     // Welcome route (API Directory)
     this.app.get('/', (req: express.Request, res: express.Response) => {

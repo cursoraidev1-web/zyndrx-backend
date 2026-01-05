@@ -127,12 +127,52 @@ export class OAuthService {
         const defaultCompanyName = companyName || 
           `${metadata.full_name || metadata.name || email.split('@')[0]}'s Workspace`;
         
-        await CompanyService.createCompany({
-          name: defaultCompanyName,
-          userId: user.id,
-        });
+        try {
+          await CompanyService.createCompany({
+            name: defaultCompanyName,
+            userId: user.id,
+          });
 
-        logger.info('New user created via OAuth', { userId: user.id, email, provider: authUser.app_metadata?.provider });
+          logger.info('New user created via OAuth', { userId: user.id, email, provider: authUser.app_metadata?.provider });
+        } catch (companyError) {
+          // Rollback: Delete user if company creation fails
+          logger.error('Company creation failed during OAuth, rolling back user creation', {
+            error: companyError,
+            userId: user.id,
+            email: email,
+          });
+
+          // Delete user profile
+          try {
+            await supabaseAdmin.from('users').delete().eq('id', user.id);
+            logger.info('User profile deleted during OAuth rollback', { userId: user.id });
+          } catch (deleteUserError) {
+            logger.error('Failed to delete user profile during OAuth rollback', {
+              error: deleteUserError,
+              userId: user.id,
+            });
+          }
+
+          // Delete auth user
+          try {
+            await supabaseAdmin.auth.admin.deleteUser(authUser.id);
+            logger.info('Auth user deleted during OAuth rollback', { userId: authUser.id });
+          } catch (deleteAuthError) {
+            logger.error('Failed to delete auth user during OAuth rollback', {
+              error: deleteAuthError,
+              userId: authUser.id,
+            });
+          }
+
+          // Re-throw the original error
+          if (companyError instanceof AppError) {
+            throw companyError;
+          }
+          throw new AppError(
+            companyError instanceof Error ? companyError.message : 'Company creation failed',
+            500
+          );
+        }
       } else {
         // Update user metadata if changed (avatar, name, etc.)
         const metadata = authUser.user_metadata || {};

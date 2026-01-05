@@ -29,11 +29,18 @@ export class CompanyService {
    */
   static async createCompany(data: CreateCompanyData) {
     try {
+      // Validate company name
+      if (!data.name || !data.name.trim()) {
+        throw new AppError('Company name is required. Please provide a valid company name.', 400);
+      }
+
+      const trimmedName = data.name.trim();
+
       // Check if company name already exists (case-insensitive)
       const { data: existingCompany } = await db
         .from('companies')
         .select('id, name')
-        .ilike('name', data.name.trim())
+        .ilike('name', trimmedName)
         .single();
 
       if (existingCompany) {
@@ -44,7 +51,7 @@ export class CompanyService {
       }
 
       // Generate unique slug
-      let slug = await this.generateUniqueSlug(data.name);
+      let slug = await this.generateUniqueSlug(trimmedName);
       let company = null;
 
       // Create company with retry logic for duplicate slugs
@@ -54,7 +61,7 @@ export class CompanyService {
       while (attempts < maxAttempts) {
         const { data: companyData, error: companyError } = await (db.from('companies') as any)
           .insert({
-            name: data.name,
+            name: trimmedName,
             slug: slug,
           })
           .select()
@@ -66,7 +73,7 @@ export class CompanyService {
             attempts++;
             if (attempts >= maxAttempts) {
               logger.error('Failed to create company after multiple slug attempts', {
-                companyName: data.name,
+                companyName: trimmedName,
                 attempts
               });
               throw new AppError(
@@ -76,11 +83,11 @@ export class CompanyService {
             }
             logger.warn('Duplicate slug detected, generating new unique slug', {
               originalSlug: slug,
-              companyName: data.name,
+              companyName: trimmedName,
               attempt: attempts
             });
             // Generate a new unique slug and retry
-            slug = await this.generateUniqueSlug(data.name, true);
+            slug = await this.generateUniqueSlug(trimmedName, true);
             continue;
           } else {
             // Provide user-friendly error messages with better error detection
