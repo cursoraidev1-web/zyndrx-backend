@@ -3,6 +3,7 @@ import { EmailService } from '../../utils/email.service';
 import { ResponseHandler } from '../../utils/response';
 import { asyncHandler } from '../../middleware/error.middleware';
 import { AppError } from '../../middleware/error.middleware';
+import { SubscriptionService } from '../subscriptions/subscriptions.service';
 import logger from '../../utils/logger';
 
 export class EmailController {
@@ -16,6 +17,11 @@ export class EmailController {
       return ResponseHandler.unauthorized(res);
     }
 
+    const companyId = req.user.companyId;
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
     const { to, subject, html, template } = req.body;
 
     // Validate required fields
@@ -27,6 +33,16 @@ export class EmailController {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(to)) {
       throw new AppError('Invalid email address', 400);
+    }
+
+    // Check email limit before sending
+    const limitCheck = await SubscriptionService.checkEmailLimit(companyId);
+    if (!limitCheck.allowed) {
+      return ResponseHandler.error(
+        res,
+        limitCheck.message || 'Daily email limit reached',
+        429
+      );
     }
 
     try {
@@ -65,12 +81,17 @@ export class EmailController {
       // Send test email using the public test method
       const emailResult = await EmailService.sendTestEmail(to, subject, emailHtml || '<p>Test email</p>');
 
+      // Track email usage after successful send
+      await SubscriptionService.trackEmailUsage(companyId);
+
       logger.info('Test email sent', { 
         to, 
         subject, 
         userId: req.user.id,
+        companyId,
         template: template || 'custom',
-        emailId: emailResult?.id
+        emailId: emailResult?.id,
+        remaining: limitCheck.remaining
       });
 
       return ResponseHandler.success(
@@ -130,6 +151,34 @@ export class EmailController {
     ];
 
     return ResponseHandler.success(res, { templates }, 'Templates retrieved successfully');
+  });
+
+  /**
+   * GET /api/v1/email/usage
+   * Get email usage and limits for current company
+   * @access Authenticated
+   */
+  getEmailUsage = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      return ResponseHandler.unauthorized(res);
+    }
+
+    const companyId = req.user.companyId;
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    const usage = await SubscriptionService.getEmailUsage(companyId);
+    const subscription = await SubscriptionService.getCompanySubscription(companyId);
+    
+    return ResponseHandler.success(res, {
+      ...usage,
+      planType: subscription?.planType || 'free',
+      planName: subscription?.planType === 'free' ? 'Free' : 
+                subscription?.planType === 'pro' ? 'Pro' : 
+                subscription?.planType === 'enterprise' ? 'Enterprise' : 'Free',
+      isUnlimited: usage.maxLimit === -1,
+    }, 'Email usage retrieved successfully');
   });
 }
 

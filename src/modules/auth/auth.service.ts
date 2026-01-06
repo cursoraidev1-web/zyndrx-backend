@@ -835,26 +835,104 @@ export class AuthService {
 
   // NEW: Forgot Password (Sends email)
   async forgotPassword(email: string) {
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://zyndrx.netlify.app/reset-password', // Point to your Frontend
-    });
-    if (error) throw new AppError(error.message, 400);
+    // Check if user exists
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id, email, full_name')
+      .eq('email', email)
+      .single() as any;
+
+    // Don't reveal if user exists or not for security
+    if (userError || !user) {
+      logger.info('Password reset requested for non-existent email', { email });
+      return { success: true };
+    }
+
+    // Generate secure token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Save token to database
+    const { error: tokenError } = await supabaseAdmin
+      .from('password_reset_tokens')
+      .insert({
+        user_id: user.id,
+        token,
+        expires_at: expiresAt.toISOString(),
+        used: false,
+      });
+
+    if (tokenError) {
+      logger.error('Failed to create reset token', { error: tokenError });
+      throw new AppError('Failed to process password reset request', 500);
+    }
+
+    // Send email with reset link
+    const resetUrl = `${config.frontend.url}/reset-password?token=${token}`;
+    
+    try {
+      const EmailService = (await import('../../utils/email.service')).default;
+      await EmailService.sendPasswordResetEmail(user.email, user.full_name, resetUrl);
+      logger.info('Password reset email sent', { email: user.email });
+    } catch (emailError) {
+      logger.error('Failed to send password reset email', { error: emailError });
+      // Don't throw error - token is saved, user can try again
+    }
+
     return { success: true };
   }
 
-  // NEW: Reset Password (User clicks email link -> Frontend -> Here)
-  async resetPassword(password: string, accessToken: string) {
-    // verify the user using the token
-    const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
-    if (error || !data.user) throw new AppError('Invalid or expired token', 401);
+  // Reset Password (User clicks email link -> Frontend -> Here)
+  async resetPassword(newPassword: string, token: string) {
+    // Verify token exists and is valid
+    const { data: resetToken, error: tokenError } = await supabaseAdmin
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('token', token)
+      .eq('used', false)
+      .single() as any;
 
-    // Update password
+    if (tokenError || !resetToken) {
+      throw new AppError('Invalid or expired reset token', 401);
+    }
+
+    // Check if token is expired
+    if (new Date(resetToken.expires_at) < new Date()) {
+      throw new AppError('Reset token has expired', 401);
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user password in Supabase Auth
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      data.user.id,
-      { password }
+      resetToken.user_id,
+      { password: newPassword }
     );
-    
-    if (updateError) throw new AppError('Failed to reset password', 500);
+
+    if (updateError) {
+      logger.error('Failed to update password in Supabase Auth', { error: updateError });
+      throw new AppError('Failed to reset password', 500);
+    }
+
+    // Update password in users table
+    const { error: dbUpdateError } = await supabaseAdmin
+      .from('users')
+      .update({ password_hash: hashedPassword })
+      .eq('id', resetToken.user_id);
+
+    if (dbUpdateError) {
+      logger.error('Failed to update password in database', { error: dbUpdateError });
+    }
+
+    // Mark token as used
+    await supabaseAdmin
+      .from('password_reset_tokens')
+      .update({ used: true })
+      .eq('id', resetToken.id);
+
+    logger.info('Password reset successful', { userId: resetToken.user_id });
     return { success: true };
   }
 

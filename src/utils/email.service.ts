@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config';
 import logger from './logger';
+import { passwordResetTemplate } from './email-templates/password-reset';
 
 const baseUrl = config.frontend.url;
 
@@ -303,4 +304,14 @@ export class EmailService {
       throw new Error(`Failed to send email: ${error.message || error.code || 'Unknown error'}`);
     }
   }
+
+  /**
+   * Send password reset email
+   */
+  static async sendPasswordResetEmail(email: string, fullName: string, resetUrl: string) {
+    const { subject, html } = passwordResetTemplate(fullName, resetUrl);
+    await this.sendEmail(email, subject, html);
+  }
 }
+
+export default EmailService;

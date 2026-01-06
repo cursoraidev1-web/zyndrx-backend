@@ -130,8 +130,8 @@ export class AuthController {
 
   // POST /api/v1/auth/reset-password
   resetPassword = asyncHandler(async (req: Request, res: Response) => {
-    const { password, accessToken } = req.body;
-    await authService.resetPassword(password, accessToken);
+    const { newPassword, token } = req.body;
+    await authService.resetPassword(newPassword, token);
     return ResponseHandler.success(res, { success: true }, 'Password reset successfully');
   });
 

@@ -13,6 +13,7 @@ export interface PlanLimit {
   maxTeamMembers: number;
   maxDocuments: number;
   maxStorageGB: number;
+  maxEmailsPerDay: number;
   features?: any;
 }
 
@@ -165,6 +166,7 @@ export class SubscriptionService {
         maxTeamMembers: plan.max_team_members,
         maxDocuments: plan.max_documents,
         maxStorageGB: plan.max_storage_gb,
+        maxEmailsPerDay: plan.max_emails_per_day || 15,
         features: plan.features,
       };
     } catch (error) {
@@ -192,6 +194,7 @@ export class SubscriptionService {
         maxTeamMembers: plan.max_team_members,
         maxDocuments: plan.max_documents,
         maxStorageGB: plan.max_storage_gb,
+        maxEmailsPerDay: plan.max_emails_per_day || 15,
         features: plan.features,
       }));
     } catch (error) {
@@ -538,6 +541,155 @@ export class SubscriptionService {
       enterprise: 'Enterprise Plan',
     };
     return names[planType] || planType;
+  }
+
+  /**
+   * Check if company can send email (based on daily limit)
+   */
+  static async checkEmailLimit(
+    companyId: string
+  ): Promise<{ allowed: boolean; message?: string; currentUsage?: number; maxLimit?: number; remaining?: number }> {
+    try {
+      const subscription = await this.getCompanySubscription(companyId);
+      
+      if (!subscription) {
+        return {
+          allowed: false,
+          message: 'Subscription not found. Please contact support.',
+        };
+      }
+
+      // Check if subscription is active
+      if (subscription.status === 'expired' || subscription.status === 'cancelled') {
+        return {
+          allowed: false,
+          message: 'Your subscription has expired or been cancelled. Please upgrade to continue.',
+        };
+      }
+
+      const limits = await this.getPlanLimits(subscription.planType);
+      if (!limits) {
+        throw new AppError('Plan limits not found', 500);
+      }
+
+      const maxLimit = limits.maxEmailsPerDay;
+      
+      // -1 means unlimited
+      if (maxLimit === -1) {
+        return { allowed: true, maxLimit: -1, currentUsage: 0, remaining: -1 };
+      }
+
+      // Get today's email usage
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const { data: usageData, error } = await db
+        .from('email_usage')
+        .select('emails_sent')
+        .eq('company_id', companyId)
+        .eq('usage_date', today)
+        .single();
+
+      const currentUsage = usageData?.emails_sent || 0;
+
+      if (currentUsage >= maxLimit) {
+        return {
+          allowed: false,
+          message: `Daily email limit reached: You have sent ${currentUsage} of ${maxLimit} emails today. Upgrade to Pro for 100 emails per day, or wait until tomorrow.`,
+          currentUsage,
+          maxLimit,
+          remaining: 0,
+        };
+      }
+
+      return {
+        allowed: true,
+        currentUsage,
+        maxLimit,
+        remaining: maxLimit - currentUsage,
+      };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Failed to check email limit', { error });
+      throw new AppError('Failed to check email limit', 500);
+    }
+  }
+
+  /**
+   * Track email usage (increment daily count)
+   */
+  static async trackEmailUsage(companyId: string): Promise<void> {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Try to update existing record
+      const { data: existing, error: selectError } = await db
+        .from('email_usage')
+        .select('id, emails_sent')
+        .eq('company_id', companyId)
+        .eq('usage_date', today)
+        .single();
+
+      if (existing) {
+        // Update existing record
+        const { error: updateError } = await db
+          .from('email_usage')
+          .update({ 
+            emails_sent: (existing.emails_sent || 0) + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id);
+
+        if (updateError) {
+          logger.error('Failed to update email usage', { error: updateError, companyId });
+        }
+      } else {
+        // Create new record for today
+        const { error: insertError } = await db
+          .from('email_usage')
+          .insert({
+            company_id: companyId,
+            usage_date: today,
+            emails_sent: 1,
+          });
+
+        if (insertError) {
+          logger.error('Failed to insert email usage', { error: insertError, companyId });
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to track email usage', { error, companyId });
+      // Don't throw - email tracking failure shouldn't block email sending
+    }
+  }
+
+  /**
+   * Get email usage for a company (today's usage)
+   */
+  static async getEmailUsage(companyId: string): Promise<{ currentUsage: number; maxLimit: number; remaining: number }> {
+    try {
+      const subscription = await this.getCompanySubscription(companyId);
+      if (!subscription) {
+        return { currentUsage: 0, maxLimit: 15, remaining: 15 };
+      }
+
+      const limits = await this.getPlanLimits(subscription.planType);
+      const maxLimit = limits?.maxEmailsPerDay || 15;
+
+      const today = new Date().toISOString().split('T')[0];
+      const { data: usageData } = await db
+        .from('email_usage')
+        .select('emails_sent')
+        .eq('company_id', companyId)
+        .eq('usage_date', today)
+        .single();
+
+      const currentUsage = usageData?.emails_sent || 0;
+      const remaining = maxLimit === -1 ? -1 : Math.max(0, maxLimit - currentUsage);
+
+      return { currentUsage, maxLimit, remaining };
+    } catch (error) {
+      logger.error('Failed to get email usage', { error, companyId });
+      return { currentUsage: 0, maxLimit: 15, remaining: 15 };
+    }
   }
 }
 

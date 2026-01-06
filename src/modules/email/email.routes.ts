@@ -33,5 +33,19 @@ router.get(
   emailController.getTemplates
 );
 
+/**
+ * @route   GET /api/v1/email/usage
+ * @desc    Get email usage and limits for current company
+ * @access  Authenticated
+ */
+router.get(
+  '/usage',
+  authenticate,
+  userRateLimiter,
+  emailController.getEmailUsage
+);
+
 export default router;
+
+
 

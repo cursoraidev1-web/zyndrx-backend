@@ -16,3 +16,6 @@ WHERE email = 'demo@zyndrx.com';
 -- SELECT * FROM auth.users WHERE email = 'demo@zyndrx.com';
 -- SELECT * FROM public.users WHERE email = 'demo@zyndrx.com';
 
+
+
+
