@@ -854,8 +854,8 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     // Save token to database
-    const { error: tokenError } = await supabaseAdmin
-      .from('password_reset_tokens')
+    const { error: tokenError } = await (supabaseAdmin
+      .from('password_reset_tokens') as any)
       .insert({
         user_id: user.id,
         token,
@@ -917,8 +917,8 @@ export class AuthService {
     }
 
     // Update password in users table
-    const { error: dbUpdateError } = await supabaseAdmin
-      .from('users')
+    const { error: dbUpdateError } = await (supabaseAdmin
+      .from('users') as any)
       .update({ password_hash: hashedPassword })
       .eq('id', resetToken.user_id);
 
@@ -927,8 +927,8 @@ export class AuthService {
     }
 
     // Mark token as used
-    await supabaseAdmin
-      .from('password_reset_tokens')
+    await (supabaseAdmin
+      .from('password_reset_tokens') as any)
       .update({ used: true })
       .eq('id', resetToken.id);
 

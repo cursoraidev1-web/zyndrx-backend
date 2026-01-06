@@ -581,14 +581,14 @@ export class SubscriptionService {
 
       // Get today's email usage
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      const { data: usageData, error } = await db
-        .from('email_usage')
+      const { data: usageData, error } = await (db
+        .from('email_usage') as any)
         .select('emails_sent')
         .eq('company_id', companyId)
         .eq('usage_date', today)
         .single();
 
-      const currentUsage = usageData?.emails_sent || 0;
+      const currentUsage = (usageData as any)?.emails_sent || 0;
 
       if (currentUsage >= maxLimit) {
         return {
@@ -621,8 +621,8 @@ export class SubscriptionService {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       
       // Try to update existing record
-      const { data: existing, error: selectError } = await db
-        .from('email_usage')
+      const { data: existing, error: selectError } = await (db
+        .from('email_usage') as any)
         .select('id, emails_sent')
         .eq('company_id', companyId)
         .eq('usage_date', today)
@@ -630,21 +630,21 @@ export class SubscriptionService {
 
       if (existing) {
         // Update existing record
-        const { error: updateError } = await db
-          .from('email_usage')
+        const { error: updateError } = await (db
+          .from('email_usage') as any)
           .update({ 
-            emails_sent: (existing.emails_sent || 0) + 1,
+            emails_sent: ((existing as any).emails_sent || 0) + 1,
             updated_at: new Date().toISOString()
           })
-          .eq('id', existing.id);
+          .eq('id', (existing as any).id);
 
         if (updateError) {
           logger.error('Failed to update email usage', { error: updateError, companyId });
         }
       } else {
         // Create new record for today
-        const { error: insertError } = await db
-          .from('email_usage')
+        const { error: insertError } = await (db
+          .from('email_usage') as any)
           .insert({
             company_id: companyId,
             usage_date: today,
@@ -675,14 +675,14 @@ export class SubscriptionService {
       const maxLimit = limits?.maxEmailsPerDay || 15;
 
       const today = new Date().toISOString().split('T')[0];
-      const { data: usageData } = await db
-        .from('email_usage')
+      const { data: usageData } = await (db
+        .from('email_usage') as any)
         .select('emails_sent')
         .eq('company_id', companyId)
         .eq('usage_date', today)
         .single();
 
-      const currentUsage = usageData?.emails_sent || 0;
+      const currentUsage = (usageData as any)?.emails_sent || 0;
       const remaining = maxLimit === -1 ? -1 : Math.max(0, maxLimit - currentUsage);
 
       return { currentUsage, maxLimit, remaining };

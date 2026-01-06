@@ -28,6 +28,7 @@ export interface Database {
           full_name: string;
           role: UserRole;
           avatar_url: string | null;
+          password_hash: string | null;
           created_at: string;
           updated_at: string;
           last_login: string | null;
@@ -39,6 +40,7 @@ export interface Database {
           full_name: string;
           role: UserRole;
           avatar_url?: string | null;
+          password_hash?: string | null;
           created_at?: string;
           updated_at?: string;
           last_login?: string | null;
@@ -50,6 +52,7 @@ export interface Database {
           full_name?: string;
           role?: UserRole;
           avatar_url?: string | null;
+          password_hash?: string | null;
           created_at?: string;
           updated_at?: string;
           last_login?: string | null;
@@ -285,6 +288,131 @@ export interface Database {
           ip_address?: string | null;
           user_agent?: string | null;
           created_at?: string;
+        };
+      };
+      password_reset_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          token: string;
+          expires_at: string;
+          used: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          token: string;
+          expires_at: string;
+          used?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          token?: string;
+          expires_at?: string;
+          used?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      email_usage: {
+        Row: {
+          id: string;
+          company_id: string;
+          usage_date: string;
+          emails_sent: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          usage_date?: string;
+          emails_sent?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          usage_date?: string;
+          emails_sent?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      companies: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string | null;
+          domain: string | null;
+          logo_url: string | null;
+          plan: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug?: string | null;
+          domain?: string | null;
+          logo_url?: string | null;
+          plan?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string | null;
+          domain?: string | null;
+          logo_url?: string | null;
+          plan?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      plan_limits: {
+        Row: {
+          plan_type: string;
+          max_projects: number;
+          max_tasks: number;
+          max_team_members: number;
+          max_documents: number;
+          max_storage_gb: number;
+          max_emails_per_day: number;
+          features: Json | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          plan_type: string;
+          max_projects?: number;
+          max_tasks?: number;
+          max_team_members?: number;
+          max_documents?: number;
+          max_storage_gb?: number;
+          max_emails_per_day?: number;
+          features?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          plan_type?: string;
+          max_projects?: number;
+          max_tasks?: number;
+          max_team_members?: number;
+          max_documents?: number;
+          max_storage_gb?: number;
+          max_emails_per_day?: number;
+          features?: Json | null;
+          created_at?: string;
+          updated_at?: string;
         };
       };
     };
