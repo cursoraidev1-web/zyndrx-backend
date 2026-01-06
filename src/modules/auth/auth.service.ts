@@ -735,10 +735,33 @@ export class AuthService {
   async generate2FASecret(userId: string) {
     const secret = speakeasy.generateSecret({ name: `Zyndrx (${userId.substring(0, 8)})` });
     
-    // Save temp secret
-    await (supabaseAdmin.from('users') as any)
-      .update({ two_factor_secret: secret.base32, two_factor_secret_set_at: new Date().toISOString() })
-      .eq('id', userId);
+    // Save temp secret - check for errors
+    const { data: updatedUser, error: updateError } = await (supabaseAdmin.from('users') as any)
+      .update({ 
+        two_factor_secret: secret.base32, 
+        two_factor_secret_set_at: new Date().toISOString() 
+      })
+      .eq('id', userId)
+      .select('id, two_factor_secret')
+      .single();
+
+    if (updateError) {
+      logger.error('Failed to save 2FA secret', { 
+        userId, 
+        error: updateError.message, 
+        errorCode: updateError.code,
+        errorDetails: updateError.details,
+        errorHint: updateError.hint
+      });
+      throw new AppError(`Failed to initialize 2FA setup: ${updateError.message}`, 500);
+    }
+
+    if (!updatedUser || !updatedUser.two_factor_secret) {
+      logger.error('2FA secret not saved after update', { userId, updatedUser });
+      throw new AppError('Failed to save 2FA secret. Please try again.', 500);
+    }
+
+    logger.info('2FA secret saved successfully', { userId, hasSecret: !!updatedUser.two_factor_secret });
 
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url!);
     return { secret: secret.base32, qrCode: qrCodeUrl };
@@ -746,13 +769,29 @@ export class AuthService {
 
   // 6. ENABLE 2FA (Finalize Setup)
   async enable2FA(userId: string, token: string) {
-    const { data: user } = await supabaseAdmin
+    const { data: user, error: fetchError } = await supabaseAdmin
       .from('users')
-      .select('two_factor_secret')
+      .select('two_factor_secret, two_factor_secret_set_at')
       .eq('id', userId)
       .single() as any;
 
-    if (!user?.two_factor_secret) throw new AppError('Setup not initialized', 400);
+    if (fetchError) {
+      logger.error('Failed to fetch user for 2FA enable', { userId, error: fetchError.message });
+      throw new AppError('Failed to verify 2FA setup', 500);
+    }
+
+    if (!user) {
+      logger.error('User not found for 2FA enable', { userId });
+      throw new AppError('User not found', 404);
+    }
+
+    if (!user.two_factor_secret) {
+      logger.warn('2FA enable attempted but secret not found', { 
+        userId, 
+        hasSecretSetAt: !!user.two_factor_secret_set_at 
+      });
+      throw new AppError('Setup not initialized. Please run setup first.', 400);
+    }
 
     const verified = speakeasy.totp.verify({
       secret: user.two_factor_secret,
