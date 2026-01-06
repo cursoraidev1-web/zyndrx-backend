@@ -41,6 +41,15 @@ export const updateProfileSchema = z.object({
   }),
 });
 
+// AVATAR UPLOAD TOKEN VALIDATION (mirrors documents upload-token pattern)
+export const avatarUploadTokenSchema = z.object({
+  body: z.object({
+    file_name: z.string().min(1, 'File name is required'),
+    file_size: z.number().int().positive('File size must be positive'),
+    file_type: z.string().min(1, 'File type is required'),
+  }),
+});
+
 export const googleLoginSchema = z.object({
   body: z.object({
     accessToken: z.string().min(1, 'Access token is required').optional(),

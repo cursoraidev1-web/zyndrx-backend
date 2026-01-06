@@ -186,6 +186,17 @@ export class AuthController {
     return ResponseHandler.success(res, user, 'Profile updated successfully');
   });
 
+  // POST /api/v1/auth/avatar/upload-token
+  requestAvatarUploadToken = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      return ResponseHandler.unauthorized(res);
+    }
+
+    const { file_name, file_size, file_type } = req.body;
+    const tokenData = await authService.generateAvatarUploadToken(req.user.id, file_name, file_size, file_type);
+    return ResponseHandler.success(res, tokenData);
+  });
+
   // POST /api/v1/auth/change-password
   changePassword = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {

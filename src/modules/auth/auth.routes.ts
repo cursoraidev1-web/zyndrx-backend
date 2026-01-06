@@ -10,6 +10,7 @@ import {
   googleLoginSchema,
   oauthSessionSchema,
   updateProfileSchema,
+  avatarUploadTokenSchema,
   verify2FASchema,
   login2FASchema,
   forgotPasswordSchema, 
@@ -96,6 +97,14 @@ router.get('/me', authenticate, userRateLimiter, authController.getCurrentUser);
  * @access  Private
  */
 router.put('/profile', authenticate, userRateLimiter, validate(updateProfileSchema), authController.updateProfile);
+
+/**
+ * @route   POST /api/v1/auth/avatar/upload-token
+ * @desc    Generate upload path for avatar upload (mirrors documents upload-token)
+ * @access  Private
+ * @body    { file_name: string, file_size: number, file_type: string }
+ */
+router.post('/avatar/upload-token', authenticate, userRateLimiter, validate(avatarUploadTokenSchema), authController.requestAvatarUploadToken);
 
 /**
  * @route   POST /api/v1/auth/change-password

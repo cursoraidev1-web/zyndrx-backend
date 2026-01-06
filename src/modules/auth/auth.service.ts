@@ -713,6 +713,33 @@ export class AuthService {
     return user;
   }
 
+  /**
+   * Generate an upload path for avatar upload (mirrors documents upload-token pattern).
+   * Note: This does NOT upload the file; it only returns a safe upload_path.
+   */
+  async generateAvatarUploadToken(userId: string, fileName: string, fileSize: number, fileType: string) {
+    const maxSizeBytes = 2 * 1024 * 1024; // 2MB
+    const allowedTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']);
+
+    if (!fileName) throw new AppError('File name is required', 400);
+    if (!fileType) throw new AppError('File type is required', 400);
+    if (!Number.isFinite(fileSize) || fileSize <= 0) throw new AppError('Invalid file size', 400);
+    if (fileSize > maxSizeBytes) throw new AppError('Image size must be less than 2MB', 400);
+    if (!allowedTypes.has(String(fileType).toLowerCase())) {
+      throw new AppError('Invalid image type. Allowed: jpg, png, gif, webp', 400);
+    }
+
+    const safeName = String(fileName).replace(/[^a-zA-Z0-9.-]/g, '_');
+    const uploadPath = `${userId}/${Date.now()}-${safeName}`;
+
+    return {
+      upload_path: uploadPath,
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes
+      max_file_size: maxSizeBytes,
+      bucket: 'avatars',
+    };
+  }
+
   // ADMIN: CREATE USER (Admin only - for creating users in their company)
   async createUserAsAdmin(
     adminUserId: string,
