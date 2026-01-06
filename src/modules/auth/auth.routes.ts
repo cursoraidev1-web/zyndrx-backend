@@ -13,6 +13,8 @@ import {
   avatarUploadTokenSchema,
   verify2FASchema,
   login2FASchema,
+  disable2FASchema,
+  regenerateRecoveryCodesSchema,
   forgotPasswordSchema, 
   resetPasswordSchema,
   changePasswordSchema,
@@ -151,6 +153,26 @@ router.post('/2fa/enable', authenticate, userRateLimiter, validate(verify2FASche
  * @access  Public (Because user doesn't have a token yet)
  */
 router.post('/2fa/verify', validate(login2FASchema), authController.verify2FALogin);
+
+/**
+ * @route   POST /api/v1/auth/2fa/disable
+ * @desc    Disable 2FA (requires TOTP or recovery code)
+ * @access  Private
+ */
+router.post('/2fa/disable', authenticate, userRateLimiter, validate(disable2FASchema), authController.disable2FA);
+
+/**
+ * @route   POST /api/v1/auth/2fa/recovery-codes/regenerate
+ * @desc    Regenerate recovery codes (requires valid TOTP)
+ * @access  Private
+ */
+router.post(
+  '/2fa/recovery-codes/regenerate',
+  authenticate,
+  userRateLimiter,
+  validate(regenerateRecoveryCodesSchema),
+  authController.regenerateRecoveryCodes
+);
 
 /**
  * @route   GET /api/v1/auth/companies

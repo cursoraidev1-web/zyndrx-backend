@@ -249,9 +249,13 @@ export class AuthController {
     if (!req.user) return ResponseHandler.unauthorized(res);
     const { token } = req.body;
     
-    await authService.enable2FA(req.user.id, token);
+    const result = await authService.enable2FA(req.user.id, token);
     logger.info('2FA enabled successfully', { userId: req.user.id });
-    return ResponseHandler.success(res, { enabled: true }, '2FA enabled successfully');
+    return ResponseHandler.success(
+      res,
+      { enabled: true, recoveryCodes: result?.recoveryCodes || [] },
+      '2FA enabled successfully'
+    );
   });
 
   // POST /api/v1/auth/2fa/verify
@@ -262,6 +266,26 @@ export class AuthController {
     const result = await authService.loginVerify2FA(email, token);
     logger.info('2FA login verified', { userId: result.user.id });
     return ResponseHandler.success(res, result, 'Login successful');
+  });
+
+  // POST /api/v1/auth/2fa/disable
+  disable2FA = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) return ResponseHandler.unauthorized(res);
+    const { token } = req.body;
+
+    await authService.disable2FA(req.user.id, token);
+    logger.info('2FA disabled', { userId: req.user.id });
+    return ResponseHandler.success(res, { disabled: true }, '2FA disabled successfully');
+  });
+
+  // POST /api/v1/auth/2fa/recovery-codes/regenerate
+  regenerateRecoveryCodes = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) return ResponseHandler.unauthorized(res);
+    const { token } = req.body;
+
+    const codes = await authService.regenerateRecoveryCodes(req.user.id, token);
+    logger.info('2FA recovery codes regenerated', { userId: req.user.id });
+    return ResponseHandler.success(res, { recoveryCodes: codes }, 'Recovery codes regenerated successfully');
   });
 
   // POST /api/v1/auth/users/:companyId (Admin only - create user in company)

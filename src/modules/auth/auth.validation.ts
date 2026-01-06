@@ -76,6 +76,21 @@ export const verify2FASchema = z.object({
 export const login2FASchema = z.object({
   body: z.object({
     email: z.string().email(),
+    // Can be either a 6-digit TOTP code OR a recovery code (e.g. XXXX-XXXX-XXXX)
+    token: z.string().min(6, 'Code is required').max(64, 'Code too long'),
+  }),
+});
+
+// Disable 2FA (requires either TOTP or recovery code)
+export const disable2FASchema = z.object({
+  body: z.object({
+    token: z.string().min(6, 'Code is required').max(64, 'Code too long'),
+  }),
+});
+
+// Regenerate recovery codes (requires a valid TOTP)
+export const regenerateRecoveryCodesSchema = z.object({
+  body: z.object({
     token: z.string().length(6, 'Code must be 6 digits'),
   }),
 });

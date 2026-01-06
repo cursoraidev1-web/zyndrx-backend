@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
+import crypto from 'crypto';
 import { supabaseAdmin } from '../../config/supabase';
 import { config } from '../../config';
 import { UserRole, Database } from '../../types/database.types';
@@ -59,6 +60,83 @@ export interface TwoFactorResponse {
 }
 
 export class AuthService {
+  private static readonly RECOVERY_CODE_COUNT = 10;
+  private static readonly RECOVERY_CODE_BYTES = 6; // 12 hex chars
+
+  private async logSecurityEvent(userId: string, eventType: string, success: boolean, details?: any) {
+    try {
+      await (supabaseAdmin.from('security_events') as any).insert({
+        user_id: userId,
+        event_type: eventType,
+        success,
+        details: details || null,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      // Non-blocking
+      logger.warn('Failed to log security event', { userId, eventType, error: (e as any)?.message || e });
+    }
+  }
+
+  private generateRecoveryCodes(count = AuthService.RECOVERY_CODE_COUNT): string[] {
+    const codes: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const raw = crypto.randomBytes(AuthService.RECOVERY_CODE_BYTES).toString('hex'); // 12 chars
+      // Format as XXXX-XXXX-XXXX for readability
+      codes.push(raw.toUpperCase().match(/.{1,4}/g)!.join('-'));
+    }
+    return codes;
+  }
+
+  private async storeRecoveryCodes(userId: string, codes: string[]) {
+    // Invalidate old unused codes
+    await (supabaseAdmin.from('two_factor_recovery_codes') as any)
+      .delete()
+      .eq('user_id', userId);
+
+    const hashedRows = await Promise.all(
+      codes.map(async (code) => ({
+        user_id: userId,
+        code_hash: await bcrypt.hash(code, 10),
+        created_at: new Date().toISOString(),
+        used_at: null,
+      }))
+    );
+
+    const { error } = await (supabaseAdmin.from('two_factor_recovery_codes') as any).insert(hashedRows);
+    if (error) {
+      logger.error('Failed to store recovery codes', { userId, error: error.message });
+      throw new AppError('Failed to generate recovery codes', 500);
+    }
+  }
+
+  private async consumeRecoveryCode(userId: string, code: string): Promise<boolean> {
+    const { data: rows, error } = await (supabaseAdmin.from('two_factor_recovery_codes') as any)
+      .select('id, code_hash, used_at')
+      .eq('user_id', userId)
+      .is('used_at', null);
+
+    if (error) {
+      logger.error('Failed to fetch recovery codes', { userId, error: error.message });
+      return false;
+    }
+
+    const candidates = Array.isArray(rows) ? rows : [];
+    for (const row of candidates) {
+      const ok = await bcrypt.compare(code, row.code_hash);
+      if (ok) {
+        const { error: updateError } = await (supabaseAdmin.from('two_factor_recovery_codes') as any)
+          .update({ used_at: new Date().toISOString() })
+          .eq('id', row.id)
+          .is('used_at', null);
+        if (updateError) {
+          logger.warn('Failed to mark recovery code used', { userId, codeId: row.id, error: updateError.message });
+        }
+        return true;
+      }
+    }
+    return false;
+  }
   
   // 1. REGISTER NEW USER
   async register(data: RegisterData): Promise<AuthResponse> {
@@ -597,14 +675,28 @@ export class AuthService {
 
     if (!user || !user.two_factor_secret) throw new AppError('2FA not enabled', 400);
 
-    const verified = speakeasy.totp.verify({
-      secret: user.two_factor_secret,
-      encoding: 'base32',
-      token: token,
-      window: 1 // 30 sec leeway
-    });
+    const normalized = String(token || '').trim();
+    const isTotp = /^\d{6}$/.test(normalized);
 
-    if (!verified) throw new AppError('Invalid 2FA code', 401);
+    let verified = false;
+    if (isTotp) {
+      verified = speakeasy.totp.verify({
+        secret: user.two_factor_secret,
+        encoding: 'base32',
+        token: normalized,
+        window: 1 // 30 sec leeway
+      });
+    } else {
+      verified = await this.consumeRecoveryCode(user.id, normalized);
+      if (verified) {
+        await this.logSecurityEvent(user.id, '2fa_recovery_used', true, { email });
+      }
+    }
+
+    if (!verified) {
+      await this.logSecurityEvent(user.id, '2fa_verify_failed', false, { email, isTotp });
+      throw new AppError('Invalid verification code', 401);
+    }
 
     // Get user's companies and default company
     const companies = await CompanyService.getUserCompanies(user.id);
@@ -645,7 +737,7 @@ export class AuthService {
     
     // Save temp secret
     await (supabaseAdmin.from('users') as any)
-      .update({ two_factor_secret: secret.base32 })
+      .update({ two_factor_secret: secret.base32, two_factor_secret_set_at: new Date().toISOString() })
       .eq('id', userId);
 
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url!);
@@ -672,9 +764,85 @@ export class AuthService {
 
     // Activate
     await (supabaseAdmin.from('users') as any)
-      .update({ is_two_factor_enabled: true })
+      .update({ is_two_factor_enabled: true, two_factor_confirmed_at: new Date().toISOString() })
       .eq('id', userId);
 
+    // Generate recovery codes once and store hashed
+    const recoveryCodes = this.generateRecoveryCodes();
+    await this.storeRecoveryCodes(userId, recoveryCodes);
+    await this.logSecurityEvent(userId, '2fa_enabled', true);
+
+    return { success: true, recoveryCodes };
+  }
+
+  async regenerateRecoveryCodes(userId: string, token: string): Promise<string[]> {
+    // Require valid TOTP to regenerate
+    const { data: user } = await supabaseAdmin
+      .from('users')
+      .select('two_factor_secret, is_two_factor_enabled')
+      .eq('id', userId)
+      .single() as any;
+
+    if (!user?.is_two_factor_enabled || !user?.two_factor_secret) throw new AppError('2FA not enabled', 400);
+
+    const verified = speakeasy.totp.verify({
+      secret: user.two_factor_secret,
+      encoding: 'base32',
+      token: token,
+      window: 1,
+    });
+    if (!verified) throw new AppError('Invalid code', 401);
+
+    const recoveryCodes = this.generateRecoveryCodes();
+    await this.storeRecoveryCodes(userId, recoveryCodes);
+    await this.logSecurityEvent(userId, '2fa_recovery_regenerated', true);
+
+    return recoveryCodes;
+  }
+
+  async disable2FA(userId: string, token: string) {
+    const { data: user } = await supabaseAdmin
+      .from('users')
+      .select('two_factor_secret, is_two_factor_enabled')
+      .eq('id', userId)
+      .single() as any;
+
+    if (!user?.is_two_factor_enabled) throw new AppError('2FA is not enabled', 400);
+
+    const normalized = String(token || '').trim();
+    const isTotp = /^\d{6}$/.test(normalized);
+
+    let verified = false;
+    if (isTotp) {
+      if (!user?.two_factor_secret) throw new AppError('2FA not initialized', 400);
+      verified = speakeasy.totp.verify({
+        secret: user.two_factor_secret,
+        encoding: 'base32',
+        token: normalized,
+        window: 1,
+      });
+    } else {
+      verified = await this.consumeRecoveryCode(userId, normalized);
+      if (verified) {
+        await this.logSecurityEvent(userId, '2fa_recovery_used', true, { action: 'disable' });
+      }
+    }
+
+    if (!verified) throw new AppError('Invalid verification code', 401);
+
+    // Disable and wipe secret + recovery codes
+    await (supabaseAdmin.from('users') as any)
+      .update({
+        is_two_factor_enabled: false,
+        two_factor_secret: null,
+        two_factor_confirmed_at: null,
+        two_factor_secret_set_at: null,
+      })
+      .eq('id', userId);
+
+    await (supabaseAdmin.from('two_factor_recovery_codes') as any).delete().eq('user_id', userId);
+
+    await this.logSecurityEvent(userId, '2fa_disabled', true);
     return { success: true };
   }
 
