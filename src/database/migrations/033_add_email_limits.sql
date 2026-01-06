@@ -60,3 +60,4 @@ CREATE POLICY "Service role can manage email usage" ON email_usage FOR ALL
   WITH CHECK (true);
 
 
+

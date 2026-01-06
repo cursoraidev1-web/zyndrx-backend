@@ -22,3 +22,4 @@ WHERE id = 'YOUR_USER_ID_HERE';
 -- If both are false, the setup endpoint UPDATE is failing
 -- Check backend logs for the actual error
 
+

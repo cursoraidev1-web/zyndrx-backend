@@ -103,3 +103,4 @@ GRANT UPDATE ON users TO service_role;
 - [ ] Recovery codes are generated and returned
 - [ ] Backend logs show successful operations
 
+

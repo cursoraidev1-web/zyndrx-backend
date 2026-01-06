@@ -44,3 +44,4 @@ CREATE POLICY "Service role can manage 2FA recovery codes" ON two_factor_recover
 GRANT ALL ON TABLE two_factor_recovery_codes TO service_role;
 
 
+

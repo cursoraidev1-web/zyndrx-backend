@@ -148,3 +148,4 @@ RESET ROLE;
 
 The new error handling will show you **exactly** what's failing instead of the generic "Setup not initialized" message.
 
+

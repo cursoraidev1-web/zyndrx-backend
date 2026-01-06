@@ -12,7 +12,7 @@ DO $$
 DECLARE
     tbl_name TEXT;
     table_list TEXT[] := ARRAY[
-        'users', 'companies', 'user_companies', 'projects', 'project_members',
+        'users', 'settings', 'companies', 'user_companies', 'projects', 'project_members',
         'tasks', 'comments', 'documents', 'prds', 'prd_versions',
         'notifications', 'audit_logs', 'subscriptions', 'teams', 'handoffs',
         'task_attachments', 'company_invites', 'feedback', 'push_subscriptions',
