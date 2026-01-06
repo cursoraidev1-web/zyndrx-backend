@@ -10,6 +10,88 @@ interface UserRecord { email: string; full_name: string; }
 
 export class ProjectService {
   
+  /**
+   * Calculate project progress based on completed tasks
+   * @param projectId - Project ID
+   * @param companyId - Company ID for security
+   * @returns Progress percentage (0-100)
+   */
+  private static async calculateProjectProgress(projectId: string, companyId: string): Promise<number> {
+    try {
+      const { data: tasks } = await db
+        .from('tasks')
+        .select('status')
+        .eq('project_id', projectId)
+        .eq('company_id', companyId);
+
+      if (!tasks || tasks.length === 0) return 0;
+
+      const completed = tasks.filter((t: any) => t.status === 'completed').length;
+      const total = tasks.length;
+      
+      return total > 0 ? Math.round((completed / total) * 100) : 0;
+    } catch (error) {
+      logger.warn('Failed to calculate project progress', { projectId, error });
+      return 0; // Return 0 on error rather than failing
+    }
+  }
+
+  /**
+   * Calculate progress for multiple projects efficiently
+   * @param projectIds - Array of project IDs
+   * @param companyId - Company ID for security
+   * @returns Map of projectId -> progress percentage
+   */
+  private static async calculateProjectsProgress(projectIds: string[], companyId: string): Promise<Map<string, number>> {
+    const progressMap = new Map<string, number>();
+    
+    if (projectIds.length === 0) return progressMap;
+
+    try {
+      // Batch fetch all tasks for all projects
+      const { data: allTasks } = await db
+        .from('tasks')
+        .select('project_id, status')
+        .in('project_id', projectIds)
+        .eq('company_id', companyId);
+
+      if (!allTasks || allTasks.length === 0) {
+        // All projects have 0 progress
+        projectIds.forEach(id => progressMap.set(id, 0));
+        return progressMap;
+      }
+
+      // Group tasks by project_id
+      const tasksByProject = new Map<string, any[]>();
+      allTasks.forEach((task: any) => {
+        const projectId = task.project_id;
+        if (!tasksByProject.has(projectId)) {
+          tasksByProject.set(projectId, []);
+        }
+        tasksByProject.get(projectId)!.push(task);
+      });
+
+      // Calculate progress for each project
+      projectIds.forEach(projectId => {
+        const projectTasks = tasksByProject.get(projectId) || [];
+        if (projectTasks.length === 0) {
+          progressMap.set(projectId, 0);
+        } else {
+          const completed = projectTasks.filter((t: any) => t.status === 'completed').length;
+          const total = projectTasks.length;
+          const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+          progressMap.set(projectId, progress);
+        }
+      });
+    } catch (error) {
+      logger.warn('Failed to calculate projects progress', { projectIds, error });
+      // Set all to 0 on error
+      projectIds.forEach(id => progressMap.set(id, 0));
+    }
+
+    return progressMap;
+  }
+
   static async createProject(data: any) {
     try {
       if (!data.company_id) throw new AppError('Company ID is required', 400);
@@ -28,7 +110,12 @@ export class ProjectService {
         this.sendProjectNotification(project, data.owner_id);
       }
 
-      return project;
+      // New projects have 0 progress
+      return {
+        ...project,
+        progress: 0,
+        completion_percentage: 0
+      };
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError('Failed to create project', 500);
@@ -46,7 +133,22 @@ export class ProjectService {
       const { data: memberProjects } = await db.from('project_members').select('project_id').eq('user_id', userId);
       const ids = (memberProjects || []).map((m: any) => m.project_id);
       
-      return (allProjects || []).filter((p: any) => p.owner_id === userId || ids.includes(p.id));
+      const filteredProjects = (allProjects || []).filter((p: any) => p.owner_id === userId || ids.includes(p.id));
+      
+      // Calculate progress for all projects efficiently
+      if (filteredProjects.length > 0) {
+        const projectIds = filteredProjects.map((p: any) => p.id);
+        const progressMap = await this.calculateProjectsProgress(projectIds, companyId);
+        
+        // Add progress to each project
+        return filteredProjects.map((project: any) => ({
+          ...project,
+          progress: progressMap.get(project.id) || 0,
+          completion_percentage: progressMap.get(project.id) || 0
+        }));
+      }
+      
+      return filteredProjects;
     } catch (error) {
       throw new AppError('Failed to fetch user projects', 500);
     }
@@ -56,7 +158,15 @@ export class ProjectService {
     try {
       const { data, error } = await db.from('projects').select('*').eq('id', projectId).eq('company_id', companyId).single();
       if (error || !data) throw new AppError('Project not found', 404);
-      return data;
+      
+      // Calculate and add progress
+      const progress = await this.calculateProjectProgress(projectId, companyId);
+      
+      return {
+        ...(data as any),
+        progress,
+        completion_percentage: progress
+      };
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError('Failed to fetch project', 500);
@@ -73,7 +183,15 @@ export class ProjectService {
         .single();
 
       if (error) throw new AppError(error.message, 500);
-      return data;
+      
+      // Calculate and add progress
+      const progress = await this.calculateProjectProgress(id, companyId);
+      
+      return {
+        ...(data as any),
+        progress,
+        completion_percentage: progress
+      };
     } catch (error) {
       throw new AppError('Failed to update project', 500);
     }

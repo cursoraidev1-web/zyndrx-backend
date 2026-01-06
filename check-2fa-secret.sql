@@ -23,3 +23,4 @@ WHERE id = 'YOUR_USER_ID_HERE';
 -- Check backend logs for the actual error
 
 
+

@@ -45,3 +45,4 @@ GRANT ALL ON TABLE two_factor_recovery_codes TO service_role;
 
 
 
+
