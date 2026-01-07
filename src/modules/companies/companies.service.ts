@@ -436,34 +436,21 @@ export class CompanyService {
 
       if (inviteError) throw new AppError(inviteError.message, 500);
 
-      // Send invitation email
-      const { Resend } = require('resend');
-      const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+      // Send invitation email via EmailService
       const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const inviteLink = `${baseUrl}/accept-company-invite?token=${token}`;
 
-      if (resend) {
-        try {
-          await resend.emails.send({
-            from: process.env.EMAIL_FROM || 'Zyndrx <noreply@zyndrx.com>',
-            to: email,
-            subject: `You've been invited to join ${companyData?.name || 'a company'} on Zyndrx`,
-            html: `
-              <h2>You've been invited!</h2>
-              <p>You have been invited to join <strong>${companyData?.name || 'a company'}</strong> on Zyndrx.</p>
-              <p>Click the link below to create your account and accept the invitation:</p>
-              <p><a href="${inviteLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Accept Invitation</a></p>
-              <p>This invitation link expires in 7 days.</p>
-              <p>If you didn't request this invitation, you can safely ignore this email.</p>
-            `,
-          });
-          logger.info('Invitation email sent', { email, companyId });
-        } catch (emailError) {
-          logger.error('Failed to send invitation email', { email, error: emailError });
-          // Don't fail the invitation if email fails - return the link
-        }
-      } else {
-        logger.info('Email mock (no API key)', { email, inviteLink });
+      try {
+        const { EmailService } = await import('../../utils/email.service');
+        await EmailService.sendCompanyInvitationEmail(
+          email,
+          companyData?.name || 'a company',
+          inviteLink
+        );
+        logger.info('Company invitation email sent', { email, companyId });
+      } catch (emailError) {
+        logger.error('Failed to send invitation email', { email, error: emailError });
+        // Don't fail the invitation if email fails - return the link
       }
 
       logger.info('Company invitation created', { email, companyId, token });

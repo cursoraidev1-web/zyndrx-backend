@@ -171,14 +171,70 @@ export class EmailController {
     const usage = await SubscriptionService.getEmailUsage(companyId);
     const subscription = await SubscriptionService.getCompanySubscription(companyId);
     
-    return ResponseHandler.success(res, {
-      ...usage,
-      planType: subscription?.planType || 'free',
-      planName: subscription?.planType === 'free' ? 'Free' : 
-                subscription?.planType === 'pro' ? 'Pro' : 
-                subscription?.planType === 'enterprise' ? 'Enterprise' : 'Free',
-      isUnlimited: usage.maxLimit === -1,
-    }, 'Email usage retrieved successfully');
+      return ResponseHandler.success(res, {
+        ...usage,
+        planType: subscription?.planType || 'free',
+        planName: subscription?.planType === 'free' ? 'Free' : 
+                  subscription?.planType === 'pro' ? 'Pro' : 
+                  subscription?.planType === 'enterprise' ? 'Enterprise' : 'Free',
+        isUnlimited: usage.maxLimit === -1,
+      }, 'Email usage retrieved successfully');
+  });
+
+  /**
+   * POST /api/v1/email/postmark-test
+   * Send a test email via Postmark (for Postman/testing)
+   * @access Public (for testing purposes)
+   */
+  sendPostmarkTestEmail = asyncHandler(async (req: Request, res: Response) => {
+    const { to, subject, html, text } = req.body;
+
+    // Validate required fields
+    if (!to || !subject) {
+      throw new AppError('Email address (to) and subject are required', 400);
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(to)) {
+      throw new AppError('Invalid email address', 400);
+    }
+
+    try {
+      // Use EmailService which handles Postmark automatically
+      const emailHtml = html || text || '<p>Test email from Zyndrx Postmark API</p>';
+      const emailResult = await EmailService.sendTestEmail(to, subject, emailHtml);
+
+      logger.info('Postmark test email sent', { 
+        to, 
+        subject, 
+        messageId: emailResult?.id
+      });
+
+      return ResponseHandler.success(
+        res,
+        { 
+          to, 
+          subject, 
+          sent: true,
+          messageId: emailResult?.id,
+          accepted: emailResult?.accepted,
+          rejected: emailResult?.rejected,
+          response: emailResult?.response,
+          message: 'Test email sent successfully via Postmark. Check your inbox!'
+        },
+        'Test email sent successfully'
+      );
+    } catch (error: any) {
+      logger.error('Failed to send Postmark test email', { 
+        error: error.message, 
+        to
+      });
+      throw new AppError(
+        `Failed to send test email: ${error.message || 'Unknown error'}`,
+        500
+      );
+    }
   });
 }
 

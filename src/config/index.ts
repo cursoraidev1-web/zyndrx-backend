@@ -39,6 +39,9 @@ const envSchema = z.object({
   // Frontend redirect URL (for OAuth callbacks)
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
  
+  // Email - Postmark (recommended) or SMTP fallback
+  POSTMARK_API_KEY: z.string().optional(), // Postmark Server API Token
+  POSTMARK_MESSAGE_STREAM: z.string().optional(), // Postmark Message Stream (e.g., "allzyndrx")
   // Email (SMTP - supports Gmail, SendGrid, Mailgun, AWS SES, etc.)
   SMTP_USER: z.string().optional(), // Gmail: your email, SendGrid: 'apikey', Mailgun: your username
   SMTP_PASSWORD: z.string().optional(), // Gmail: App Password, SendGrid: API key, Mailgun: password
@@ -132,6 +135,9 @@ export const config = {
     url: env.FRONTEND_URL,
   },
   email: {
+    // Postmark API key (preferred - works immediately, no domain needed)
+    postmarkApiKey: env.POSTMARK_API_KEY,
+    postmarkMessageStream: env.POSTMARK_MESSAGE_STREAM,
     // Use SMTP_USER/SMTP_PASSWORD if provided, otherwise fall back to GMAIL_USER/GMAIL_APP_PASSWORD for backward compatibility
     smtpUser: env.SMTP_USER || env.GMAIL_USER,
     smtpPassword: env.SMTP_PASSWORD || env.GMAIL_APP_PASSWORD,

@@ -1,16 +1,31 @@
 import nodemailer from 'nodemailer';
+import { ServerClient } from 'postmark';
 import { config } from '../config';
 import logger from './logger';
 import { passwordResetTemplate } from './email-templates/password-reset';
 
 const baseUrl = config.frontend.url;
 
-// Create reusable transporter for Gmail SMTP
+// Postmark client (preferred - works immediately, no domain needed)
+let postmarkClient: ServerClient | null = null;
+
+// Create reusable transporter for SMTP fallback
 let transporter: nodemailer.Transporter | null = null;
+
+const getPostmarkClient = (): ServerClient | null => {
+  if (!config.email.postmarkApiKey) {
+    return null;
+  }
+
+  if (!postmarkClient) {
+    postmarkClient = new ServerClient(config.email.postmarkApiKey);
+  }
+
+  return postmarkClient;
+};
 
 const createTransporter = (): nodemailer.Transporter | null => {
   if (!config.email.smtpUser || !config.email.smtpPassword) {
-    logger.warn('SMTP not configured - SMTP_USER/SMTP_PASSWORD or GMAIL_USER/GMAIL_APP_PASSWORD is missing');
     return null;
   }
 
@@ -45,23 +60,65 @@ const createTransporter = (): nodemailer.Transporter | null => {
 };
 
 /**
- * Centralized email service for sending transactional emails via Gmail SMTP
+ * Centralized email service for sending transactional emails
+ * Uses Postmark (preferred) with SMTP fallback
  */
 export class EmailService {
   
   /**
-   * Send email via Gmail SMTP
+   * Send email via Postmark (preferred) or SMTP fallback
    */
   static async sendEmail(to: string, subject: string, html: string) {
-    const mailTransporter = createTransporter();
-    
-    if (!mailTransporter) {
-      logger.info('Email mock (no SMTP config)', { to, subject });
+    if (!config.email.fromAddress) {
+      logger.warn('Email from address not configured', { to, subject });
       return;
     }
 
-    if (!config.email.fromAddress) {
-      logger.warn('Email from address not configured', { to, subject });
+    // Try Postmark first (works immediately, no domain needed)
+    const postmark = getPostmarkClient();
+    if (postmark) {
+      try {
+        // Extract email from "Name <email>" format if needed
+        const fromMatch = config.email.fromAddress.match(/<([^>]+)>/) || [null, config.email.fromAddress];
+        const fromEmail = fromMatch[1] || config.email.fromAddress;
+        const fromName = config.email.fromAddress.match(/^(.+?)\s*</)?.[1] || 'Zyndrx';
+
+        const emailPayload: any = {
+          From: `${fromName} <${fromEmail}>`,
+          To: to,
+          Subject: subject,
+          HtmlBody: html,
+        };
+
+        // Add MessageStream if configured
+        if (config.email.postmarkMessageStream) {
+          emailPayload.MessageStream = config.email.postmarkMessageStream;
+        }
+
+        const result = await postmark.sendEmail(emailPayload);
+
+        logger.info('Email sent successfully via Postmark', { 
+          to, 
+          subject, 
+          messageId: result.MessageID 
+        });
+        return;
+      } catch (error: any) {
+        logger.error('Postmark email failed, falling back to SMTP', { 
+          to, 
+          subject, 
+          error: error.message 
+        });
+        // Fall through to SMTP
+      }
+    }
+
+    // Fallback to SMTP
+    const mailTransporter = createTransporter();
+    
+    if (!mailTransporter) {
+      logger.warn('Email not sent - neither Postmark nor SMTP configured', { to, subject });
+      logger.info('To enable emails, set POSTMARK_API_KEY (recommended) or SMTP_USER/SMTP_PASSWORD');
       return;
     }
 
@@ -73,13 +130,13 @@ export class EmailService {
         html,
       });
 
-      logger.info('Email sent successfully', { 
+      logger.info('Email sent successfully via SMTP', { 
         to, 
         subject, 
         messageId: info.messageId 
       });
     } catch (error: any) {
-      logger.error('Failed to send email', { 
+      logger.error('Failed to send email via SMTP', { 
         to, 
         subject, 
         error: error.message,
@@ -218,20 +275,69 @@ export class EmailService {
    * Send test email (public method for testing)
    */
   static async sendTestEmail(to: string, subject: string, html: string) {
-    const mailTransporter = createTransporter();
-    
-    if (!mailTransporter) {
-      logger.warn('Email service not configured - SMTP_USER/SMTP_PASSWORD or GMAIL_USER/GMAIL_APP_PASSWORD is missing', { to, subject });
-      throw new Error('Email service is not configured. SMTP_USER and SMTP_PASSWORD (or GMAIL_USER and GMAIL_APP_PASSWORD) are required. Please configure them in your environment variables.');
-    }
-
     if (!config.email.fromAddress) {
       logger.warn('Email from address not configured - EMAIL_FROM is missing', { to, subject });
       throw new Error('Email from address is not configured. EMAIL_FROM environment variable is required.');
     }
 
+    // Try Postmark first
+    const postmark = getPostmarkClient();
+    if (postmark) {
+      try {
+        const fromMatch = config.email.fromAddress.match(/<([^>]+)>/) || [null, config.email.fromAddress];
+        const fromEmail = fromMatch[1] || config.email.fromAddress;
+        const fromName = config.email.fromAddress.match(/^(.+?)\s*</)?.[1] || 'Zyndrx';
+
+        logger.info('Attempting to send test email via Postmark', { 
+          to, 
+          subject, 
+          from: `${fromName} <${fromEmail}>`
+        });
+
+        const emailPayload: any = {
+          From: `${fromName} <${fromEmail}>`,
+          To: to,
+          Subject: subject,
+          HtmlBody: html,
+        };
+
+        // Add MessageStream if configured
+        if (config.email.postmarkMessageStream) {
+          emailPayload.MessageStream = config.email.postmarkMessageStream;
+        }
+
+        const result = await postmark.sendEmail(emailPayload);
+        
+        logger.info('Test email sent successfully via Postmark', { 
+          to, 
+          subject, 
+          messageId: result.MessageID
+        });
+
+        return {
+          id: result.MessageID,
+          accepted: [to],
+          rejected: [],
+          response: `Postmark: ${result.MessageID}`,
+        };
+      } catch (error: any) {
+        logger.error('Failed to send test email via Postmark', { 
+          to, 
+          subject, 
+          error: error.message 
+        });
+        throw new Error(`Postmark email failed: ${error.message || 'Unknown error'}`);
+      }
+    }
+
+    // Fallback to SMTP
+    const mailTransporter = createTransporter();
+    
+    if (!mailTransporter) {
+      throw new Error('Email service is not configured. Set POSTMARK_API_KEY (recommended) or SMTP_USER/SMTP_PASSWORD in your environment variables.');
+    }
+
     try {
-      // Verify connection before sending
       logger.info('Verifying SMTP connection...', {
         host: config.email.smtp.host,
         port: config.email.smtp.port,
@@ -286,19 +392,19 @@ export class EmailService {
       
       // Provide more helpful error messages
       if (error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('authentication')) {
-        throw new Error('Email sending failed: Invalid Gmail credentials. Please check your GMAIL_USER and GMAIL_APP_PASSWORD. Make sure you\'re using an App Password (not your regular password) and that 2-Step Verification is enabled.');
+        throw new Error('Email sending failed: Invalid SMTP credentials. Please check your SMTP_USER and SMTP_PASSWORD.');
       }
       
       if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('connection') || error.message?.includes('timeout')) {
-        throw new Error(`Email sending failed: Connection timeout. Your hosting platform (Render/Vercel/etc.) likely blocks SMTP ports. Gmail SMTP doesn't work on most cloud platforms. Please use SendGrid, Mailgun, or AWS SES instead. See GMAIL_SMTP_SETUP.md for alternatives.`);
+        throw new Error(`Email sending failed: Connection timeout. Your hosting platform (Render/Vercel/etc.) likely blocks SMTP ports. Please use Postmark (set POSTMARK_API_KEY) instead.`);
       }
 
       if (error.code === 'ESOCKET' || error.message?.includes('socket')) {
-        throw new Error('Email sending failed: Socket error. The SMTP port might be blocked by your firewall or network. Try using port 465 with SMTP_SECURE=true.');
+        throw new Error('Email sending failed: Socket error. The SMTP port might be blocked by your firewall or network. Try using port 465 with SMTP_SECURE=true, or use Postmark instead.');
       }
 
       if (error.message?.includes('rate limit') || error.message?.includes('429')) {
-        throw new Error('Email sending failed: Rate limit exceeded. Gmail has limits on the number of emails you can send (500/day for free accounts, 2000/day for Workspace). Please try again later.');
+        throw new Error('Email sending failed: Rate limit exceeded. Please try again later or use Postmark for better reliability.');
       }
 
       throw new Error(`Failed to send email: ${error.message || error.code || 'Unknown error'}`);
@@ -310,6 +416,22 @@ export class EmailService {
    */
   static async sendPasswordResetEmail(email: string, fullName: string, resetUrl: string) {
     const { subject, html } = passwordResetTemplate(fullName, resetUrl);
+    await this.sendEmail(email, subject, html);
+  }
+
+  /**
+   * Send company invitation email
+   */
+  static async sendCompanyInvitationEmail(email: string, companyName: string, inviteLink: string) {
+    const subject = `You've been invited to join ${companyName} on Zyndrx`;
+    const html = `
+      <h2>You've been invited!</h2>
+      <p>You have been invited to join <strong>${companyName}</strong> on Zyndrx.</p>
+      <p>Click the link below to create your account and accept the invitation:</p>
+      <p><a href="${inviteLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Accept Invitation</a></p>
+      <p>This invitation link expires in 7 days.</p>
+      <p>If you didn't request this invitation, you can safely ignore this email.</p>
+    `;
     await this.sendEmail(email, subject, html);
   }
 }

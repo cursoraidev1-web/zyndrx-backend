@@ -3,7 +3,7 @@ import { EmailController } from './email.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { userRateLimiter } from '../../middleware/rate-limit.middleware';
 import { validate } from '../../middleware/validation.middleware';
-import { sendTestEmailSchema } from './email.validation';
+import { sendTestEmailSchema, sendPostmarkTestEmailSchema } from './email.validation';
 
 const router = Router();
 const emailController = new EmailController();
@@ -43,6 +43,17 @@ router.get(
   authenticate,
   userRateLimiter,
   emailController.getEmailUsage
+);
+
+/**
+ * @route   POST /api/v1/email/postmark-test
+ * @desc    Send a test email via Postmark (for Postman/testing)
+ * @access  Public (for testing purposes)
+ */
+router.post(
+  '/postmark-test',
+  validate(sendPostmarkTestEmailSchema),
+  emailController.sendPostmarkTestEmail
 );
 
 export default router;
