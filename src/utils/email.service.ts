@@ -1,27 +1,27 @@
 import nodemailer from 'nodemailer';
-import { ServerClient } from 'postmark';
+import { Resend } from 'resend';
 import { config } from '../config';
 import logger from './logger';
 import { passwordResetTemplate } from './email-templates/password-reset';
 
 const baseUrl = config.frontend.url;
 
-// Postmark client (preferred - works immediately, no domain needed)
-let postmarkClient: ServerClient | null = null;
+// Resend client (requires verified domain)
+let resendClient: Resend | null = null;
 
 // Create reusable transporter for SMTP fallback
 let transporter: nodemailer.Transporter | null = null;
 
-const getPostmarkClient = (): ServerClient | null => {
-  if (!config.email.postmarkApiKey) {
+const getResendClient = (): Resend | null => {
+  if (!config.email.resendApiKey) {
     return null;
   }
 
-  if (!postmarkClient) {
-    postmarkClient = new ServerClient(config.email.postmarkApiKey);
+  if (!resendClient) {
+    resendClient = new Resend(config.email.resendApiKey);
   }
 
-  return postmarkClient;
+  return resendClient;
 };
 
 const createTransporter = (): nodemailer.Transporter | null => {
@@ -61,12 +61,12 @@ const createTransporter = (): nodemailer.Transporter | null => {
 
 /**
  * Centralized email service for sending transactional emails
- * Uses Postmark (preferred) with SMTP fallback
+ * Uses Resend (requires verified domain) with SMTP fallback
  */
 export class EmailService {
   
   /**
-   * Send email via Postmark (preferred) or SMTP fallback
+   * Send email via Resend (requires verified domain) or SMTP fallback
    */
   static async sendEmail(to: string, subject: string, html: string) {
     if (!config.email.fromAddress) {
@@ -74,37 +74,30 @@ export class EmailService {
       return;
     }
 
-    // Try Postmark first (works immediately, no domain needed)
-    const postmark = getPostmarkClient();
-    if (postmark) {
+    // Try Resend first (requires verified domain)
+    const resend = getResendClient();
+    if (resend) {
       try {
         // Extract email from "Name <email>" format if needed
         const fromMatch = config.email.fromAddress.match(/<([^>]+)>/) || [null, config.email.fromAddress];
         const fromEmail = fromMatch[1] || config.email.fromAddress;
         const fromName = config.email.fromAddress.match(/^(.+?)\s*</)?.[1] || 'Zyndrx';
 
-        const emailPayload: any = {
-          From: `${fromName} <${fromEmail}>`,
-          To: to,
-          Subject: subject,
-          HtmlBody: html,
-        };
+        const result = await resend.emails.send({
+          from: `${fromName} <${fromEmail}>`,
+          to: to,
+          subject: subject,
+          html: html,
+        });
 
-        // Add MessageStream if configured
-        if (config.email.postmarkMessageStream) {
-          emailPayload.MessageStream = config.email.postmarkMessageStream;
-        }
-
-        const result = await postmark.sendEmail(emailPayload);
-
-        logger.info('Email sent successfully via Postmark', { 
+        logger.info('Email sent successfully via Resend', { 
           to, 
           subject, 
-          messageId: result.MessageID 
+          messageId: result.data?.id 
         });
         return;
       } catch (error: any) {
-        logger.error('Postmark email failed, falling back to SMTP', { 
+        logger.error('Resend email failed, falling back to SMTP', { 
           to, 
           subject, 
           error: error.message 
@@ -117,8 +110,8 @@ export class EmailService {
     const mailTransporter = createTransporter();
     
     if (!mailTransporter) {
-      logger.warn('Email not sent - neither Postmark nor SMTP configured', { to, subject });
-      logger.info('To enable emails, set POSTMARK_API_KEY (recommended) or SMTP_USER/SMTP_PASSWORD');
+      logger.warn('Email not sent - neither Resend nor SMTP configured', { to, subject });
+      logger.info('To enable emails, set RESEND_API_KEY (requires verified domain) or SMTP_USER/SMTP_PASSWORD');
       return;
     }
 
@@ -280,53 +273,46 @@ export class EmailService {
       throw new Error('Email from address is not configured. EMAIL_FROM environment variable is required.');
     }
 
-    // Try Postmark first
-    const postmark = getPostmarkClient();
-    if (postmark) {
+    // Try Resend first
+    const resend = getResendClient();
+    if (resend) {
       try {
         const fromMatch = config.email.fromAddress.match(/<([^>]+)>/) || [null, config.email.fromAddress];
         const fromEmail = fromMatch[1] || config.email.fromAddress;
         const fromName = config.email.fromAddress.match(/^(.+?)\s*</)?.[1] || 'Zyndrx';
 
-        logger.info('Attempting to send test email via Postmark', { 
+        logger.info('Attempting to send test email via Resend', { 
           to, 
           subject, 
           from: `${fromName} <${fromEmail}>`
         });
 
-        const emailPayload: any = {
-          From: `${fromName} <${fromEmail}>`,
-          To: to,
-          Subject: subject,
-          HtmlBody: html,
-        };
-
-        // Add MessageStream if configured
-        if (config.email.postmarkMessageStream) {
-          emailPayload.MessageStream = config.email.postmarkMessageStream;
-        }
-
-        const result = await postmark.sendEmail(emailPayload);
+        const result = await resend.emails.send({
+          from: `${fromName} <${fromEmail}>`,
+          to: to,
+          subject: subject,
+          html: html,
+        });
         
-        logger.info('Test email sent successfully via Postmark', { 
+        logger.info('Test email sent successfully via Resend', { 
           to, 
           subject, 
-          messageId: result.MessageID
+          messageId: result.data?.id
         });
 
         return {
-          id: result.MessageID,
+          id: result.data?.id,
           accepted: [to],
           rejected: [],
-          response: `Postmark: ${result.MessageID}`,
+          response: `Resend: ${result.data?.id}`,
         };
       } catch (error: any) {
-        logger.error('Failed to send test email via Postmark', { 
+        logger.error('Failed to send test email via Resend', { 
           to, 
           subject, 
           error: error.message 
         });
-        throw new Error(`Postmark email failed: ${error.message || 'Unknown error'}`);
+        throw new Error(`Resend email failed: ${error.message || 'Unknown error'}`);
       }
     }
 
@@ -334,7 +320,7 @@ export class EmailService {
     const mailTransporter = createTransporter();
     
     if (!mailTransporter) {
-      throw new Error('Email service is not configured. Set POSTMARK_API_KEY (recommended) or SMTP_USER/SMTP_PASSWORD in your environment variables.');
+      throw new Error('Email service is not configured. Set RESEND_API_KEY (requires verified domain) or SMTP_USER/SMTP_PASSWORD in your environment variables.');
     }
 
     try {
@@ -396,15 +382,15 @@ export class EmailService {
       }
       
       if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('connection') || error.message?.includes('timeout')) {
-        throw new Error(`Email sending failed: Connection timeout. Your hosting platform (Render/Vercel/etc.) likely blocks SMTP ports. Please use Postmark (set POSTMARK_API_KEY) instead.`);
+        throw new Error(`Email sending failed: Connection timeout. Your hosting platform (Render/Vercel/etc.) likely blocks SMTP ports. Please use Resend (set RESEND_API_KEY) instead.`);
       }
 
       if (error.code === 'ESOCKET' || error.message?.includes('socket')) {
-        throw new Error('Email sending failed: Socket error. The SMTP port might be blocked by your firewall or network. Try using port 465 with SMTP_SECURE=true, or use Postmark instead.');
+        throw new Error('Email sending failed: Socket error. The SMTP port might be blocked by your firewall or network. Try using port 465 with SMTP_SECURE=true, or use Resend instead.');
       }
 
       if (error.message?.includes('rate limit') || error.message?.includes('429')) {
-        throw new Error('Email sending failed: Rate limit exceeded. Please try again later or use Postmark for better reliability.');
+        throw new Error('Email sending failed: Rate limit exceeded. Please try again later or use Resend for better reliability.');
       }
 
       throw new Error(`Failed to send email: ${error.message || error.code || 'Unknown error'}`);

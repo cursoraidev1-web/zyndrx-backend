@@ -182,11 +182,11 @@ export class EmailController {
   });
 
   /**
-   * POST /api/v1/email/postmark-test
-   * Send a test email via Postmark (for Postman/testing)
+   * POST /api/v1/email/resend-test
+   * Send a test email via Resend (for Postman/testing)
    * @access Public (for testing purposes)
    */
-  sendPostmarkTestEmail = asyncHandler(async (req: Request, res: Response) => {
+  sendResendTestEmail = asyncHandler(async (req: Request, res: Response) => {
     const { to, subject, html, text } = req.body;
 
     // Validate required fields
@@ -201,11 +201,11 @@ export class EmailController {
     }
 
     try {
-      // Use EmailService which handles Postmark automatically
-      const emailHtml = html || text || '<p>Test email from Zyndrx Postmark API</p>';
+      // Use EmailService which handles Resend automatically
+      const emailHtml = html || text || '<p>Test email from Zyndrx Resend API</p>';
       const emailResult = await EmailService.sendTestEmail(to, subject, emailHtml);
 
-      logger.info('Postmark test email sent', { 
+      logger.info('Resend test email sent', { 
         to, 
         subject, 
         messageId: emailResult?.id
@@ -221,12 +221,12 @@ export class EmailController {
           accepted: emailResult?.accepted,
           rejected: emailResult?.rejected,
           response: emailResult?.response,
-          message: 'Test email sent successfully via Postmark. Check your inbox!'
+          message: 'Test email sent successfully via Resend. Check your inbox!'
         },
         'Test email sent successfully'
       );
     } catch (error: any) {
-      logger.error('Failed to send Postmark test email', { 
+      logger.error('Failed to send Resend test email', { 
         error: error.message, 
         to
       });

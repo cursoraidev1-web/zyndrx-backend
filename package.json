@@ -22,6 +22,7 @@
     "paystack": "^2.0.1",
     "postmark": "^4.0.5",
     "qrcode": "^1.5.4",
+    "resend": "^6.7.0",
     "speakeasy": "^2.0.0",
     "web-push": "^3.6.7",
     "winston": "^3.19.0",
