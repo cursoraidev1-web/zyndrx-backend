@@ -53,7 +53,8 @@ export class FeedbackController {
     const { id } = req.params;
     const userId = req.user!.id;
 
-    const feedback = await FeedbackService.getFeedbackById(id, userId);
+    const feedbackId = Array.isArray(id) ? id[0] : id;
+    const feedback = await FeedbackService.getFeedbackById(feedbackId, userId);
 
     if (!feedback) {
       return ResponseHandler.error(res, 'Feedback not found', 404);
@@ -71,7 +72,8 @@ export class FeedbackController {
     const userId = req.user!.id;
     const { status } = req.body;
 
-    const feedback = await FeedbackService.updateFeedbackStatus(id, userId, status);
+    const feedbackId = Array.isArray(id) ? id[0] : id;
+    const feedback = await FeedbackService.updateFeedbackStatus(feedbackId, userId, status);
 
     return ResponseHandler.success(res, feedback, 'Feedback status updated successfully');
   });

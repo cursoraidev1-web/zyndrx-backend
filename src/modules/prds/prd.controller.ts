@@ -32,7 +32,8 @@ export const getPrd = async (req: Request, res: Response, next: NextFunction) =>
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const prd = await PrdService.getPRDById(id, companyId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    const prd = await PrdService.getPRDById(prdId, companyId);
     return ResponseHandler.success(res, prd, 'PRD fetched successfully');
   } catch (error) {
     next(error);
@@ -84,7 +85,8 @@ export const updatePrd = async (req: Request, res: Response, next: NextFunction)
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const prd = await PrdService.updatePRD(id, { title, content }, companyId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    const prd = await PrdService.updatePRD(prdId, { title, content }, companyId);
     return ResponseHandler.success(res, prd, 'PRD updated successfully');
   } catch (error) {
     next(error);
@@ -105,7 +107,8 @@ export const deletePrd = async (req: Request, res: Response, next: NextFunction)
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    await PrdService.deletePRD(id, companyId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    await PrdService.deletePRD(prdId, companyId);
     return ResponseHandler.success(res, null, 'PRD deleted successfully');
   } catch (error) {
     next(error);
@@ -129,9 +132,10 @@ export const createPrdVersion = async (req: Request, res: Response, next: NextFu
     }
 
     // Verify PRD exists and belongs to company
-    await PrdService.getPRDById(id, companyId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    await PrdService.getPRDById(prdId, companyId);
 
-    const version = await PrdService.createPRDVersion(id, companyId, {
+    const version = await PrdService.createPRDVersion(prdId, companyId, {
       title,
       content,
       created_by: userId,
@@ -159,9 +163,10 @@ export const getPrdVersions = async (req: Request, res: Response, next: NextFunc
     }
 
     // Verify PRD exists and belongs to company
-    await PrdService.getPRDById(id, companyId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    await PrdService.getPRDById(prdId, companyId);
 
-    const versions = await PrdService.getPRDVersions(id);
+    const versions = await PrdService.getPRDVersions(prdId);
     return ResponseHandler.success(res, versions, 'PRD versions fetched successfully');
   } catch (error) {
     next(error);
@@ -185,9 +190,10 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
     }
 
     // Verify PRD exists and belongs to company
-    await PrdService.getPRDById(id, companyId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    await PrdService.getPRDById(prdId, companyId);
 
-    const prd = await PrdService.updateStatus(id, status, adminId);
+    const prd = await PrdService.updateStatus(prdId, status, adminId);
     return ResponseHandler.success(res, prd, `PRD marked as ${status}`);
   } catch (error) {
     next(error);
@@ -205,7 +211,8 @@ export const addPRDSection = async (req: Request, res: Response, next: NextFunct
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const prd = await PrdService.addPRDSection(id, companyId, { id: sectionId, title, content });
+    const prdId = Array.isArray(id) ? id[0] : id;
+    const prd = await PrdService.addPRDSection(prdId, companyId, { id: sectionId, title, content });
     return ResponseHandler.success(res, prd, 'Section added successfully');
   } catch (error) {
     next(error);

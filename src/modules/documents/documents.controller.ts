@@ -40,7 +40,8 @@ export const getDocumentDownloadUrl = async (req: Request, res: Response, next: 
   try {
     const { id } = req.params;
     const companyId = (req as any).user.companyId;
-    const downloadData = await DocumentService.generateDownloadUrl(id, companyId);
+    const docId = Array.isArray(id) ? id[0] : id;
+    const downloadData = await DocumentService.generateDownloadUrl(docId, companyId);
     return ResponseHandler.success(res, downloadData);
   } catch (error) { next(error); }
 };
@@ -52,7 +53,8 @@ export const updateDocument = async (req: Request, res: Response, next: NextFunc
     const companyId = (req as any).user.companyId;
     const { title, tags } = req.body;
 
-    const document = await DocumentService.getDocumentById(id, companyId);
+    const docId = Array.isArray(id) ? id[0] : id;
+    const document = await DocumentService.getDocumentById(docId, companyId);
     
     const { data: membership } = await db.from('user_companies').select('role').eq('company_id', companyId).eq('user_id', userId).single();
     
@@ -64,7 +66,7 @@ export const updateDocument = async (req: Request, res: Response, next: NextFunc
 
     const { data: updatedDoc, error } = await (db.from('documents') as any)
       .update({ title, tags, updated_at: new Date().toISOString() })
-      .eq('id', id)
+      .eq('id', docId)
       .select('*, uploader:users!documents_uploaded_by_fkey(full_name)')
       .single();
 
@@ -77,7 +79,8 @@ export const getDocument = async (req: Request, res: Response, next: NextFunctio
     const { id } = req.params;
     const companyId = (req as any).user.companyId;
     
-    const document = await DocumentService.getDocumentById(id, companyId);
+    const docId = Array.isArray(id) ? id[0] : id;
+    const document = await DocumentService.getDocumentById(docId, companyId);
     return ResponseHandler.success(res, document, 'Document fetched successfully');
   } catch (error) {
     next(error);
@@ -90,7 +93,8 @@ export const deleteDocument = async (req: Request, res: Response, next: NextFunc
     const { id } = req.params;
     const userId = (req as any).user.id;
     const companyId = (req as any).user.companyId;
-    await DocumentService.deleteDocument(id, userId, companyId);
+    const docId = Array.isArray(id) ? id[0] : id;
+    await DocumentService.deleteDocument(docId, userId, companyId);
     return ResponseHandler.success(res, null, 'Document deleted successfully');
   } catch (error) { next(error); }
 };

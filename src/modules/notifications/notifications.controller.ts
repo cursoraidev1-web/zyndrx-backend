@@ -14,7 +14,8 @@ export const markRead = async (req: Request, res: Response, next: NextFunction) 
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    await NotificationService.markAsRead(id, userId);
+    const notificationId = Array.isArray(id) ? id[0] : id;
+    await NotificationService.markAsRead(notificationId, userId);
     return ResponseHandler.success(res, { success: true }, 'Marked as read');
   } catch (error) { next(error); }
 };

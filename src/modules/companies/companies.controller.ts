@@ -21,7 +21,8 @@ export class CompanyController {
   getCompany = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.user!.id;
-    const company = await CompanyService.getCompanyById(id, userId);
+    const companyId = Array.isArray(id) ? id[0] : id;
+    const company = await CompanyService.getCompanyById(companyId, userId);
     return ResponseHandler.success(res, company);
   });
 
@@ -53,7 +54,8 @@ export class CompanyController {
   getMembers = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.user!.id;
-    const members = await CompanyService.getCompanyMembers(id, userId);
+    const companyId = Array.isArray(id) ? id[0] : id;
+    const members = await CompanyService.getCompanyMembers(companyId, userId);
     return ResponseHandler.success(res, members);
   });
 
@@ -70,7 +72,8 @@ export class CompanyController {
       return ResponseHandler.error(res, 'Email is required', 400);
     }
 
-    const result = await CompanyService.inviteUser(id, email, role || 'member', userId);
+    const companyId = Array.isArray(id) ? id[0] : id;
+    const result = await CompanyService.inviteUser(companyId, email, role || 'member', userId);
     return ResponseHandler.created(res, result, 'User invited successfully');
   });
 
@@ -92,7 +95,9 @@ export class CompanyController {
       return ResponseHandler.error(res, `Role must be one of: ${validRoles.join(', ')}`, 400);
     }
 
-    const result = await CompanyService.updateMemberRole(id, memberUserId, role, updaterId);
+    const companyId = Array.isArray(id) ? id[0] : id;
+    const memUserId = Array.isArray(memberUserId) ? memberUserId[0] : memberUserId;
+    const result = await CompanyService.updateMemberRole(companyId, memUserId, role, updaterId);
     return ResponseHandler.success(res, result, 'Member role updated successfully');
   });
 
@@ -104,7 +109,9 @@ export class CompanyController {
     const { id, userId: memberUserId } = req.params;
     const removerId = req.user!.id;
 
-    await CompanyService.removeMember(id, memberUserId, removerId);
+    const companyId = Array.isArray(id) ? id[0] : id;
+    const memUserId = Array.isArray(memberUserId) ? memberUserId[0] : memberUserId;
+    await CompanyService.removeMember(companyId, memUserId, removerId);
     return ResponseHandler.success(res, null, 'Member removed successfully');
   });
 

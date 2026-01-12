@@ -38,7 +38,8 @@ export const getHandoff = async (req: Request, res: Response, next: NextFunction
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const handoff = await HandoffService.getHandoffById(id, companyId);
+    const handoffId = Array.isArray(id) ? id[0] : id;
+    const handoff = await HandoffService.getHandoffById(handoffId, companyId);
     return ResponseHandler.success(res, handoff, 'Handoff fetched successfully');
   } catch (error) {
     next(error);
@@ -79,7 +80,8 @@ export const updateHandoff = async (req: Request, res: Response, next: NextFunct
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const handoff = await HandoffService.updateHandoff(id, companyId, updates);
+    const handoffId = Array.isArray(id) ? id[0] : id;
+    const handoff = await HandoffService.updateHandoff(handoffId, companyId, updates);
     return ResponseHandler.success(res, handoff, 'Handoff updated successfully');
   } catch (error) {
     next(error);
@@ -95,7 +97,8 @@ export const deleteHandoff = async (req: Request, res: Response, next: NextFunct
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    await HandoffService.deleteHandoff(id, companyId);
+    const handoffId = Array.isArray(id) ? id[0] : id;
+    await HandoffService.deleteHandoff(handoffId, companyId);
     return ResponseHandler.success(res, null, 'Handoff deleted successfully');
   } catch (error) {
     next(error);
@@ -112,7 +115,8 @@ export const approveHandoff = async (req: Request, res: Response, next: NextFunc
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const handoff = await HandoffService.approveHandoff(id, approverId, companyId);
+    const handoffId = Array.isArray(id) ? id[0] : id;
+    const handoff = await HandoffService.approveHandoff(handoffId, approverId, companyId);
     return ResponseHandler.success(res, handoff, 'Handoff approved successfully');
   } catch (error) {
     next(error);
@@ -130,7 +134,8 @@ export const rejectHandoff = async (req: Request, res: Response, next: NextFunct
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const handoff = await HandoffService.rejectHandoff(id, rejectorId, companyId, reason);
+    const handoffId = Array.isArray(id) ? id[0] : id;
+    const handoff = await HandoffService.rejectHandoff(handoffId, rejectorId, companyId, reason);
     return ResponseHandler.success(res, handoff, 'Handoff rejected successfully');
   } catch (error) {
     next(error);
@@ -147,7 +152,8 @@ export const getHandoffComments = async (req: Request, res: Response, next: Next
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const comments = await HandoffService.getHandoffComments(id, companyId);
+    const handoffId = Array.isArray(id) ? id[0] : id;
+    const comments = await HandoffService.getHandoffComments(handoffId, companyId);
     return ResponseHandler.success(res, comments, 'Handoff comments fetched successfully');
   } catch (error) {
     next(error);
@@ -169,7 +175,8 @@ export const addHandoffComment = async (req: Request, res: Response, next: NextF
       return ResponseHandler.error(res, 'Comment content is required', 400);
     }
 
-    const newComment = await HandoffService.addHandoffComment(id, userId, companyId, comment);
+    const handoffId = Array.isArray(id) ? id[0] : id;
+    const newComment = await HandoffService.addHandoffComment(handoffId, userId, companyId, comment);
     return ResponseHandler.created(res, newComment, 'Comment added successfully');
   } catch (error) {
     next(error);
@@ -193,8 +200,9 @@ export const uploadHandoffAttachment = async (req: Request, res: Response, next:
     }
 
     const { HandoffAttachmentService } = await import('./handoff-attachments.service');
+    const handoffId = Array.isArray(id) ? id[0] : id;
     const attachment = await HandoffAttachmentService.saveAttachment(
-      id,
+      handoffId,
       { file_name, file_path, file_url, file_type, file_size },
       userId,
       companyId

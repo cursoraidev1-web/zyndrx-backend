@@ -31,7 +31,8 @@ export const getIntegration = async (req: Request, res: Response, next: NextFunc
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const integration = await IntegrationsService.getIntegrationById(id, companyId);
+    const integrationId = Array.isArray(id) ? id[0] : id;
+    const integration = await IntegrationsService.getIntegrationById(integrationId, companyId);
     return ResponseHandler.success(res, integration, 'Integration fetched successfully');
   } catch (error) {
     next(error);
@@ -77,7 +78,8 @@ export const disconnectIntegration = async (req: Request, res: Response, next: N
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    await IntegrationsService.disconnectIntegration(id, companyId);
+    const integrationId = Array.isArray(id) ? id[0] : id;
+    await IntegrationsService.disconnectIntegration(integrationId, companyId);
     return ResponseHandler.success(res, null, 'Integration disconnected successfully');
   } catch (error) {
     next(error);
@@ -98,7 +100,8 @@ export const updateIntegrationConfig = async (req: Request, res: Response, next:
       return ResponseHandler.error(res, 'Configuration object is required', 400);
     }
 
-    const integration = await IntegrationsService.updateIntegrationConfig(id, companyId, config);
+    const integrationId = Array.isArray(id) ? id[0] : id;
+    const integration = await IntegrationsService.updateIntegrationConfig(integrationId, companyId, config);
     return ResponseHandler.success(res, integration, 'Configuration updated successfully');
   } catch (error) {
     next(error);
@@ -114,7 +117,8 @@ export const syncIntegration = async (req: Request, res: Response, next: NextFun
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const result = await IntegrationsService.syncIntegration(id, companyId);
+    const integrationId = Array.isArray(id) ? id[0] : id;
+    const result = await IntegrationsService.syncIntegration(integrationId, companyId);
     return ResponseHandler.success(res, result, 'Integration sync initiated successfully');
   } catch (error) {
     next(error);

@@ -58,7 +58,8 @@ export class CommentController {
       const { user } = req as any;
 
       // ✅ FIX: Passed companyId
-      const comment = await CommentService.updateComment(id, user.id, content, user.companyId);
+      const commentId = Array.isArray(id) ? id[0] : id;
+      const comment = await CommentService.updateComment(commentId, user.id, content, user.companyId);
 
       res.status(200).json({
         status: 'success',
@@ -75,7 +76,8 @@ export class CommentController {
       const { user } = req as any;
 
       // ✅ FIX: Passed companyId
-      await CommentService.deleteComment(id, user.id, user.companyId);
+      const commentId = Array.isArray(id) ? id[0] : id;
+      await CommentService.deleteComment(commentId, user.id, user.companyId);
 
       res.status(204).send();
     } catch (error) {

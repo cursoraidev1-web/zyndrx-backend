@@ -296,7 +296,8 @@ export class AuthController {
 
     logger.info('Admin creating user', { adminUserId, companyId, email });
 
-    const result = await authService.createUserAsAdmin(adminUserId, companyId, {
+    const compId = Array.isArray(companyId) ? companyId[0] : companyId;
+    const result = await authService.createUserAsAdmin(adminUserId, compId, {
       email,
       password,
       fullName,
