@@ -1,6 +1,7 @@
 import App from './app';
 import { config } from './config';
 import logger from './utils/logger';
+import { IntegrationScheduler } from './modules/integrations/integrations.scheduler';
 import { PushService } from './modules/push/push.service';
  
 // Initialize push notifications
@@ -26,6 +27,12 @@ process.on('unhandledRejection', (reason: any) => {
 // Create and start server
 const app = new App();
 app.listen(config.server.port);
+
+// Start integration sync scheduler (production only)
+if (config.server.nodeEnv === 'production') {
+  IntegrationScheduler.start();
+  logger.info('Integration sync scheduler started');
+}
  
 // Graceful shutdown
 const gracefulShutdown = (signal: string) => {

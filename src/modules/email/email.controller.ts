@@ -22,11 +22,11 @@ export class EmailController {
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const { to, subject, html, template } = req.body;
+    const { to, subject, html } = req.body;
 
     // Validate required fields
-    if (!to || !subject) {
-      throw new AppError('Email address and subject are required', 400);
+    if (!to || !subject || !html) {
+      throw new AppError('Email address, subject, and HTML content are required', 400);
     }
 
     // Email validation
@@ -46,40 +46,8 @@ export class EmailController {
     }
 
     try {
-      // If template is provided, use predefined templates
-      let emailHtml = html;
-      
-      if (template && !html) {
-        switch (template) {
-          case 'welcome':
-            emailHtml = `
-              <h2>Welcome to Zyndrx!</h2>
-              <p>This is a test welcome email.</p>
-              <p>If you received this, the email system is working correctly.</p>
-              <p>Best regards,<br>The Zyndrx Team</p>
-            `;
-            break;
-          case 'notification':
-            emailHtml = `
-              <h2>Test Notification</h2>
-              <p>This is a test notification email.</p>
-              <p>The email system is functioning properly.</p>
-            `;
-            break;
-          case 'invitation':
-            emailHtml = `
-              <h2>Test Invitation</h2>
-              <p>This is a test invitation email.</p>
-              <p>You can use this to verify email delivery.</p>
-            `;
-            break;
-          default:
-            emailHtml = html || '<p>Test email from Zyndrx</p>';
-        }
-      }
-
       // Send test email using the public test method
-      const emailResult = await EmailService.sendTestEmail(to, subject, emailHtml || '<p>Test email</p>');
+      const emailResult = await EmailService.sendTestEmail(to, subject, html);
 
       // Track email usage after successful send
       await SubscriptionService.trackEmailUsage(companyId);
@@ -89,7 +57,6 @@ export class EmailController {
         subject, 
         userId: req.user.id,
         companyId,
-        template: template || 'custom',
         emailId: emailResult?.id,
         remaining: limitCheck.remaining
       });

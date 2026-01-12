@@ -358,5 +358,50 @@ export class IntegrationsService {
       throw new AppError('Failed to sync integration', 500);
     }
   }
+
+  /**
+   * Sync GitHub integration
+   * Syncs repositories, issues, and pull requests from GitHub
+   */
+  private static async syncGitHubIntegration(integration: any, companyId: string) {
+    try {
+      const config = integration.config || {};
+      const accessToken = config.access_token;
+      
+      if (!accessToken) {
+        logger.warn('GitHub integration missing access token', { integrationId: integration.id });
+        return;
+      }
+
+      // Import GitHub service dynamically to avoid circular dependencies
+      const GitHubServiceModule = await import('../github/github.service');
+      const GitHubService = GitHubServiceModule.GithubService;
+      
+      // Sync repositories
+      if (config.sync_repositories !== false) {
+        await GitHubService.syncRepositories(companyId, config);
+        logger.info('GitHub repositories synced', { integrationId: integration.id, companyId });
+      }
+
+      // Sync issues (convert to tasks)
+      if (config.sync_issues !== false && integration.project_id) {
+        await GitHubService.syncIssues(integration.project_id, companyId, config);
+        logger.info('GitHub issues synced', { integrationId: integration.id, companyId, projectId: integration.project_id });
+      }
+
+      // Sync pull requests
+      if (config.sync_pull_requests !== false && integration.project_id) {
+        await GitHubService.syncPullRequests(integration.project_id, companyId, config);
+        logger.info('GitHub pull requests synced', { integrationId: integration.id, companyId, projectId: integration.project_id });
+      }
+    } catch (error: any) {
+      logger.error('GitHub sync error', {
+        error: error.message,
+        integrationId: integration.id,
+        companyId,
+      });
+      // Don't throw - allow sync to continue for other integrations
+    }
+  }
 }
 

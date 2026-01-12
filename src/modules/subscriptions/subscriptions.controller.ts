@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { SubscriptionService } from './subscriptions.service';
+import { PaystackService } from '../../services/paystack.service';
 import { ResponseHandler } from '../../utils/response';
+import { AppError } from '../../middleware/error.middleware';
+import logger from '../../utils/logger';
 import { asyncHandler } from '../../middleware/error.middleware';
 
 export class SubscriptionController {
@@ -131,6 +134,89 @@ export class SubscriptionController {
         ? 'Subscription cancelled immediately'
         : 'Subscription will be cancelled at the end of the billing period'
     );
+  });
+
+  /**
+   * Verify payment
+   * POST /api/v1/subscription/verify-payment
+   */
+  verifyPayment = asyncHandler(async (req: Request, res: Response) => {
+    const companyId = req.user!.companyId;
+    const { reference } = req.body;
+
+    if (!companyId) {
+      return ResponseHandler.error(res, 'Company context required', 400);
+    }
+
+    if (!reference) {
+      return ResponseHandler.error(res, 'Payment reference is required', 400);
+    }
+
+    try {
+      // Verify payment with Paystack
+      const verification = await PaystackService.verifyPayment(reference);
+
+      if (!verification.status || verification.data.status !== 'success') {
+        return ResponseHandler.error(
+          res,
+          'Payment verification failed',
+          400
+        );
+      }
+
+      // Get subscription for company
+      const subscription = await SubscriptionService.getCompanySubscription(companyId);
+      if (!subscription) {
+        return ResponseHandler.error(res, 'Subscription not found', 404);
+      }
+
+      // Update subscription with payment details
+      const now = new Date();
+      const periodEnd = new Date();
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+      const { supabaseAdmin } = await import('../../config/supabase');
+      const { data: updatedSubscription, error } = await (supabaseAdmin.from('subscriptions') as any)
+        .update({
+          status: 'active',
+          current_period_start: now.toISOString(),
+          current_period_end: periodEnd.toISOString(),
+          paystack_customer_code: verification.data.customer?.customer_code || subscription.paystackCustomerCode,
+          paystack_authorization_code: verification.data.authorization?.authorization_code || subscription.paystackAuthorizationCode,
+          cancel_at_period_end: false,
+        })
+        .eq('company_id', companyId)
+        .select()
+        .single();
+
+      if (error) {
+        logger.error('Failed to update subscription after payment verification', { error, companyId, reference });
+        throw new AppError('Failed to update subscription', 500);
+      }
+
+      logger.info('Payment verified and subscription updated', { companyId, reference });
+
+      return ResponseHandler.success(
+        res,
+        {
+          verified: true,
+          subscription: {
+            plan: {
+              type: updatedSubscription.plan_type,
+              status: updatedSubscription.status,
+              currentPeriodEnd: updatedSubscription.current_period_end,
+            },
+          },
+        },
+        'Payment verified successfully'
+      );
+    } catch (error: any) {
+      logger.error('Payment verification error', { error: error.message, companyId, reference });
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to verify payment', 500);
+    }
   });
 
   /**

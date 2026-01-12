@@ -2,7 +2,6 @@ import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { config } from '../config';
 import logger from './logger';
-import { passwordResetTemplate } from './email-templates/password-reset';
 
 const baseUrl = config.frontend.url;
 
@@ -401,7 +400,17 @@ export class EmailService {
    * Send password reset email
    */
   static async sendPasswordResetEmail(email: string, fullName: string, resetUrl: string) {
-    const { subject, html } = passwordResetTemplate(fullName, resetUrl);
+    const subject = 'Reset your Zyndrx password';
+    const html = `
+      <h2>Password Reset Request</h2>
+      <p>Hi ${fullName},</p>
+      <p>You requested to reset your password. Click the link below to reset it:</p>
+      <p><a href="${resetUrl}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a></p>
+      <p>This link expires in 1 hour.</p>
+      <p>If you didn't request this, you can safely ignore this email.</p>
+      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+      <p>${resetUrl}</p>
+    `;
     await this.sendEmail(email, subject, html);
   }
 

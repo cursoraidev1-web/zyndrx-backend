@@ -31,6 +31,8 @@ import emailRoutes from './modules/email/email.routes';
 import { EmailController } from './modules/email/email.controller';
 import { validate } from './middleware/validation.middleware';
 import { sendResendTestEmailSchema } from './modules/email/email.validation';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
 
 class App {
   public app: Application;
@@ -110,6 +112,8 @@ class App {
     this.app.use(sanitizeInput);
 
     // Body parsing middleware
+    // Note: Webhook routes need raw body for signature verification
+    // We'll handle this in the webhook route itself by using JSON.stringify
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -134,6 +138,12 @@ class App {
 
   private configureRoutes(): void {
     const apiPrefix = `/api/${config.server.apiVersion}`;
+
+    // Swagger API Documentation
+    this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'Zyndrx API Documentation',
+    }));
 
     // Health check endpoint
     this.app.get('/health', (req: express.Request, res: express.Response) => {
@@ -182,11 +192,12 @@ class App {
         version: config.server.apiVersion,
         endpoints: {
           health: '/health',
+          apiDocs: '/api-docs',
           auth: `${apiPrefix}/auth`,
           projects: `${apiPrefix}/projects`,
           prds: `${apiPrefix}/prds`,
-          tasks: `${apiPrefix}/tasks`,       // <--- ADDED
-          github: `${apiPrefix}/github`,     // <--- ADDED
+          tasks: `${apiPrefix}/tasks`,
+          github: `${apiPrefix}/github`,
           notifications: `${apiPrefix}/notifications`,
           documents: `${apiPrefix}/documents`,
           analytics: `${apiPrefix}/analytics`,

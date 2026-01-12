@@ -9,8 +9,44 @@ import logger from '../../utils/logger';
 const authService = new AuthService();
 
 export class AuthController {
-  
-  // POST /api/v1/auth/register
+  /**
+   * @swagger
+   * /api/v1/auth/register:
+   *   post:
+   *     summary: Register a new user
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - email
+   *               - password
+   *               - fullName
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *               password:
+   *                 type: string
+   *                 minLength: 8
+   *               fullName:
+   *                 type: string
+   *               companyName:
+   *                 type: string
+   *               role:
+   *                 type: string
+   *                 enum: [admin, developer, pm, qa, devops]
+   *     responses:
+   *       201:
+   *         description: User registered successfully
+   *       400:
+   *         description: Invalid input
+   *       409:
+   *         description: User already exists
+   */
   register = asyncHandler(async (req: Request, res: Response) => {
     const { email, password, fullName, role, companyName, invitationToken } = req.body;
 
@@ -30,7 +66,35 @@ export class AuthController {
     return ResponseHandler.created(res, result, 'Registration successful');
   });
 
-  // POST /api/v1/auth/login
+  /**
+   * @swagger
+   * /api/v1/auth/login:
+   *   post:
+   *     summary: Login user
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - email
+   *               - password
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *               password:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Login successful
+   *       202:
+   *         description: 2FA verification required
+   *       401:
+   *         description: Invalid credentials
+   */
   login = asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
     const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
