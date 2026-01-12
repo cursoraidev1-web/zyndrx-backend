@@ -10,13 +10,13 @@ export const createCompanySchema = z.object({
 export const inviteUserSchema = z.object({
   body: z.object({
     email: z.string().email('Invalid email format'),
-    role: z.enum(['admin', 'member', 'viewer']).optional().default('member'),
+    role: z.enum(['admin', 'member', 'viewer', 'owner']).optional().default('member'),
   }),
 });
 
 export const updateMemberRoleSchema = z.object({
   body: z.object({
-    role: z.enum(['admin', 'member', 'viewer']),
+    role: z.enum(['admin', 'member', 'viewer', 'owner']),
   }),
 });
 

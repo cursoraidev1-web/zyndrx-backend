@@ -90,7 +90,7 @@ export class CompanyController {
       return ResponseHandler.error(res, 'Role is required', 400);
     }
 
-    const validRoles = ['admin', 'member', 'viewer'];
+    const validRoles = ['admin', 'member', 'viewer', 'owner'];
     if (!validRoles.includes(role)) {
       return ResponseHandler.error(res, `Role must be one of: ${validRoles.join(', ')}`, 400);
     }

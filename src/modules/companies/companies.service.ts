@@ -25,6 +25,12 @@ export interface CompanyMember {
 
 export class CompanyService {
   /**
+   * Check if a user has admin privileges (admin or owner role)
+   */
+  private static isAdminOrOwner(role: string | null | undefined): boolean {
+    return role === 'admin' || role === 'owner';
+  }
+  /**
    * Create a new company and add user as admin
    */
   static async createCompany(data: CreateCompanyData) {
@@ -347,8 +353,8 @@ export class CompanyService {
         .single();
 
       const inviterMember = membership as any;
-      if (!inviterMember || inviterMember.role !== 'admin') {
-        throw new AppError('Only company admins can invite users', 403);
+      if (!inviterMember || !CompanyService.isAdminOrOwner(inviterMember.role)) {
+        throw new AppError('Only company admins or owners can invite users', 403);
       }
 
       // Get company info for email
@@ -551,8 +557,8 @@ export class CompanyService {
         .single();
 
       const member = membership as any;
-      if (!member || member.role !== 'admin') {
-        throw new AppError('Only company admins can update member roles', 403);
+      if (!member || !CompanyService.isAdminOrOwner(member.role)) {
+        throw new AppError('Only company admins or owners can update member roles', 403);
       }
 
       // Update role
@@ -587,8 +593,8 @@ export class CompanyService {
         .single();
 
       const member = membership as any;
-      if (!member || member.role !== 'admin') {
-        throw new AppError('Only company admins can remove members', 403);
+      if (!member || !CompanyService.isAdminOrOwner(member.role)) {
+        throw new AppError('Only company admins or owners can remove members', 403);
       }
 
       // Prevent removing yourself
