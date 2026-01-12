@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../../config/supabase';
 import { Database } from '../../types/database.types';
 import { AppError } from '../../middleware/error.middleware';
 import { SubscriptionService } from '../subscriptions/subscriptions.service';
+import EmailService from '../../utils/email.service';
 import logger from '../../utils/logger';
 
 const db = supabaseAdmin as SupabaseClient<Database>;
@@ -447,7 +448,6 @@ export class CompanyService {
       const inviteLink = `${baseUrl}/accept-company-invite?token=${token}`;
 
       try {
-        const { EmailService } = await import('../../utils/email.service');
         await EmailService.sendCompanyInvitationEmail(
           email,
           companyData?.name || 'a company',
