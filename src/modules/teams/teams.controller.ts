@@ -38,7 +38,8 @@ export class TeamController {
   public getMembers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { project_id } = req.params;
-      const members = await TeamService.getMembers(project_id);
+      const projId = Array.isArray(project_id) ? project_id[0] : project_id;
+      const members = await TeamService.getMembers(projId);
       return ResponseHandler.success(res, members);
     } catch (error) {
       next(error);
@@ -94,7 +95,8 @@ export class TeamController {
         return ResponseHandler.error(res, 'Company context required', 400);
       }
 
-      const team = await TeamService.getTeamById(id, companyId);
+      const teamId = Array.isArray(id) ? id[0] : id;
+      const team = await TeamService.getTeamById(teamId, companyId);
       return ResponseHandler.success(res, team, 'Team fetched successfully');
     } catch (error) {
       next(error);
@@ -111,7 +113,8 @@ export class TeamController {
         return ResponseHandler.error(res, 'Company context required', 400);
       }
 
-      const team = await TeamService.updateTeam(id, companyId, updates);
+      const teamId = Array.isArray(id) ? id[0] : id;
+      const team = await TeamService.updateTeam(teamId, companyId, updates);
       return ResponseHandler.success(res, team, 'Team updated successfully');
     } catch (error) {
       next(error);
@@ -127,7 +130,8 @@ export class TeamController {
         return ResponseHandler.error(res, 'Company context required', 400);
       }
 
-      await TeamService.deleteTeam(id, companyId);
+      const teamId = Array.isArray(id) ? id[0] : id;
+      await TeamService.deleteTeam(teamId, companyId);
       return ResponseHandler.success(res, null, 'Team deleted successfully');
     } catch (error) {
       next(error);
@@ -143,7 +147,8 @@ export class TeamController {
         return ResponseHandler.error(res, 'Company context required', 400);
       }
 
-      const members = await TeamService.getTeamMembers(id, companyId);
+      const teamId = Array.isArray(id) ? id[0] : id;
+      const members = await TeamService.getTeamMembers(teamId, companyId);
       return ResponseHandler.success(res, members, 'Team members fetched successfully');
     } catch (error) {
       next(error);
@@ -160,7 +165,8 @@ export class TeamController {
         return ResponseHandler.error(res, 'Company context required', 400);
       }
 
-      const member = await TeamService.addTeamMember(id, companyId, user_id, role);
+      const teamId = Array.isArray(id) ? id[0] : id;
+      const member = await TeamService.addTeamMember(teamId, companyId, user_id, role);
       return ResponseHandler.created(res, member, 'Member added to team successfully');
     } catch (error) {
       next(error);
@@ -176,7 +182,9 @@ export class TeamController {
         return ResponseHandler.error(res, 'Company context required', 400);
       }
 
-      await TeamService.removeTeamMember(id, companyId, userId);
+      const teamId = Array.isArray(id) ? id[0] : id;
+      const uId = Array.isArray(userId) ? userId[0] : userId;
+      await TeamService.removeTeamMember(teamId, companyId, uId);
       return ResponseHandler.success(res, null, 'Member removed from team successfully');
     } catch (error) {
       next(error);

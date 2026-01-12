@@ -58,7 +58,8 @@ export const saveAttachment = async (req: Request, res: Response, next: NextFunc
 export const getTaskAttachments = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { taskId } = req.params;
-    const attachments = await TaskAttachmentService.getTaskAttachments(taskId);
+    const tId = Array.isArray(taskId) ? taskId[0] : taskId;
+    const attachments = await TaskAttachmentService.getTaskAttachments(tId);
     return ResponseHandler.success(res, attachments, 'Attachments fetched successfully');
   } catch (error) {
     next(error);
@@ -74,7 +75,8 @@ export const getAttachmentDownloadUrl = async (req: Request, res: Response, next
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const downloadData = await TaskAttachmentService.generateDownloadUrl(id, companyId);
+    const attachmentId = Array.isArray(id) ? id[0] : id;
+    const downloadData = await TaskAttachmentService.generateDownloadUrl(attachmentId, companyId);
     return ResponseHandler.success(res, downloadData, 'Download URL generated');
   } catch (error) {
     next(error);
@@ -91,7 +93,8 @@ export const deleteAttachment = async (req: Request, res: Response, next: NextFu
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    await TaskAttachmentService.deleteAttachment(id, userId, companyId);
+    const attachmentId = Array.isArray(id) ? id[0] : id;
+    await TaskAttachmentService.deleteAttachment(attachmentId, userId, companyId);
     return ResponseHandler.success(res, null, 'Attachment deleted successfully');
   } catch (error) {
     next(error);

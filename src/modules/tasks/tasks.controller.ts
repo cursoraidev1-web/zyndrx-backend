@@ -58,7 +58,8 @@ export const getTask = async (req: Request, res: Response, next: NextFunction) =
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const task = await TaskService.getTaskById(id, companyId);
+    const taskId = Array.isArray(id) ? id[0] : id;
+    const task = await TaskService.getTaskById(taskId, companyId);
     return ResponseHandler.success(res, task, 'Task fetched successfully');
   } catch (error) {
     next(error);
@@ -79,7 +80,8 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const task = await TaskService.updateTask(id, req.body, companyId);
+    const taskId = Array.isArray(id) ? id[0] : id;
+    const task = await TaskService.updateTask(taskId, req.body, companyId);
     return ResponseHandler.success(res, task, 'Task updated successfully');
   } catch (error) {
     next(error);
@@ -100,7 +102,8 @@ export const deleteTask = async (req: Request, res: Response, next: NextFunction
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    await TaskService.deleteTask(id, companyId);
+    const taskId = Array.isArray(id) ? id[0] : id;
+    await TaskService.deleteTask(taskId, companyId);
     return ResponseHandler.success(res, null, 'Task deleted successfully');
   } catch (error) {
     next(error);

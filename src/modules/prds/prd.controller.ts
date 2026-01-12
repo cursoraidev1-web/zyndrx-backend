@@ -222,7 +222,9 @@ export const updatePRDSection = async (req: Request, res: Response, next: NextFu
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const prd = await PrdService.updatePRDSection(id, companyId, sectionId, { title, content });
+    const prdId = Array.isArray(id) ? id[0] : id;
+    const secId = Array.isArray(sectionId) ? sectionId[0] : sectionId;
+    const prd = await PrdService.updatePRDSection(prdId, companyId, secId, { title, content });
     return ResponseHandler.success(res, prd, 'Section updated successfully');
   } catch (error) {
     next(error);
@@ -238,7 +240,10 @@ export const deletePRDSection = async (req: Request, res: Response, next: NextFu
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const prd = await PrdService.deletePRDSection(id, companyId, sectionId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    const secId = Array.isArray(sectionId) ? sectionId[0] : sectionId;
+
+    const prd = await PrdService.deletePRDSection(prdId, companyId, secId);
     return ResponseHandler.success(res, prd, 'Section deleted successfully');
   } catch (error) {
     next(error);
@@ -260,7 +265,8 @@ export const addPRDAssignee = async (req: Request, res: Response, next: NextFunc
       return ResponseHandler.error(res, 'User ID is required', 400);
     }
 
-    const prd = await PrdService.addPRDAssignee(id, companyId, userId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    const prd = await PrdService.addPRDAssignee(prdId, companyId, userId);
     return ResponseHandler.success(res, prd, 'Assignee added successfully');
   } catch (error) {
     next(error);
@@ -276,7 +282,10 @@ export const removePRDAssignee = async (req: Request, res: Response, next: NextF
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const prd = await PrdService.removePRDAssignee(id, companyId, userId);
+    const prdId = Array.isArray(id) ? id[0] : id;
+    const uId = Array.isArray(userId) ? userId[0] : userId;
+
+    const prd = await PrdService.removePRDAssignee(prdId, companyId, uId);
     return ResponseHandler.success(res, prd, 'Assignee removed successfully');
   } catch (error) {
     next(error);

@@ -61,7 +61,8 @@ export const getProjectDetails = async (req: Request, res: Response, next: NextF
       return ResponseHandler.error(res, 'Company context required', 400);
     }
     
-    const project = await ProjectService.getProjectById(id, companyId);
+    const projectId = Array.isArray(id) ? id[0] : id;
+    const project = await ProjectService.getProjectById(projectId, companyId);
     
     if (!project) return ResponseHandler.notFound(res, 'Project not found');
     
@@ -81,8 +82,9 @@ export const updateProject = async (req: Request, res: Response, next: NextFunct
     }
 
     const { name, description, start_date, end_date, status, team_name } = req.body;
+    const projectId = Array.isArray(id) ? id[0] : id;
     
-    const project = await ProjectService.updateProject(id, companyId, {
+    const project = await ProjectService.updateProject(projectId, companyId, {
       name,
       description,
       start_date,
@@ -106,7 +108,8 @@ export const deleteProject = async (req: Request, res: Response, next: NextFunct
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    await ProjectService.deleteProject(id, companyId);
+    const projectId = Array.isArray(id) ? id[0] : id;
+    await ProjectService.deleteProject(projectId, companyId);
     return ResponseHandler.success(res, null, 'Project deleted successfully');
   } catch (error) {
     next(error);
@@ -122,7 +125,8 @@ export const getProjectMembers = async (req: Request, res: Response, next: NextF
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    const members = await ProjectService.getProjectMembers(id, companyId);
+    const projectId = Array.isArray(id) ? id[0] : id;
+    const members = await ProjectService.getProjectMembers(projectId, companyId);
     return ResponseHandler.success(res, members, 'Project members fetched successfully');
   } catch (error) {
     next(error);
@@ -140,8 +144,9 @@ export const addProjectMember = async (req: Request, res: Response, next: NextFu
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
+    const projectId = Array.isArray(id) ? id[0] : id;
     const member = await ProjectService.addProjectMember(
-      id, 
+      projectId, 
       companyId, 
       user_id, 
       role, 
@@ -163,7 +168,9 @@ export const removeProjectMember = async (req: Request, res: Response, next: Nex
       return ResponseHandler.error(res, 'Company context required', 400);
     }
 
-    await ProjectService.removeProjectMember(id, companyId, userId);
+    const projectId = Array.isArray(id) ? id[0] : id;
+    const uId = Array.isArray(userId) ? userId[0] : userId;
+    await ProjectService.removeProjectMember(projectId, companyId, uId);
     return ResponseHandler.success(res, null, 'Member removed from project successfully');
   } catch (error) {
     next(error);
