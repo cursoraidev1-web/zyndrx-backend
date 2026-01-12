@@ -28,6 +28,9 @@ import feedbackRoutes from './modules/feedback/feedback.routes';
 import activityRoutes from './modules/activity/activity.routes';
 import integrationRoutes from './modules/integrations/integrations.routes';
 import emailRoutes from './modules/email/email.routes';
+import { EmailController } from './modules/email/email.controller';
+import { validate } from './middleware/validation.middleware';
+import { sendResendTestEmailSchema } from './modules/email/email.validation';
 
 class App {
   public app: Application;
@@ -162,6 +165,14 @@ class App {
     this.app.use(`${apiPrefix}/activity`, activityRoutes);
     this.app.use(`${apiPrefix}/integrations`, integrationRoutes);
     this.app.use(`${apiPrefix}/email`, emailRoutes);
+
+    // Convenience route for email testing (shorter path)
+    const emailController = new EmailController();
+    this.app.post(
+      `${apiPrefix}/resend-test`,
+      validate(sendResendTestEmailSchema),
+      emailController.sendResendTestEmail
+    );
 
     // Welcome route (API Directory)
     this.app.get('/', (req: express.Request, res: express.Response) => {
