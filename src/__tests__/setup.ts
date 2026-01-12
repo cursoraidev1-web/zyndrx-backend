@@ -14,4 +14,5 @@ process.env.FRONTEND_URL = 'http://localhost:3000';
 process.env.ALLOWED_ORIGINS = 'http://localhost:3000';
 
 // Increase timeout for async operations
+// @ts-ignore - Jest global
 jest.setTimeout(10000);
