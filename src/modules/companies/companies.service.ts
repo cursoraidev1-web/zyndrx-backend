@@ -346,12 +346,17 @@ export class CompanyService {
   static async inviteUser(companyId: string, email: string, role: string, inviterId: string) {
     try {
       // Verify inviter is admin
-      const { data: membership } = await db
+      const { data: membership, error: membershipError } = await db
         .from('user_companies')
         .select('role')
         .eq('company_id', companyId)
         .eq('user_id', inviterId)
         .single();
+
+      if (membershipError) {
+        logger.error('Failed to verify inviter membership', { membershipError, companyId, inviterId });
+        throw new AppError('Failed to verify permissions', 500);
+      }
 
       const inviterMember = membership as any;
       if (!inviterMember || !CompanyService.isAdminOrOwner(inviterMember.role)) {
@@ -359,32 +364,50 @@ export class CompanyService {
       }
 
       // Get company info for email
-      const { data: company } = await db
+      const { data: company, error: companyError } = await db
         .from('companies')
         .select('name')
         .eq('id', companyId)
         .single();
 
-      const companyData = company as any;
+      if (companyError) {
+        logger.error('Failed to fetch company', { companyError, companyId });
+        throw new AppError('Company not found', 404);
+      }
 
-      // Find user by email
-      const { data: user } = await db
+      const companyData = company as any;
+      if (!companyData) {
+        throw new AppError('Company not found', 404);
+      }
+
+      // Find user by email (this query may return null if user doesn't exist, which is fine)
+      const { data: user, error: userError } = await db
         .from('users')
         .select('id')
-        .eq('email', email)
-        .single();
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle(); // Use maybeSingle() instead of single() to handle null case
+
+      if (userError && userError.code !== 'PGRST116') { // PGRST116 is "not found" which is OK
+        logger.error('Error checking user existence', { userError, email });
+        throw new AppError('Failed to check user existence', 500);
+      }
 
       const userData = user as any;
 
       // If user exists, add them directly
       if (userData && userData.id) {
         // Check if already a member
-        const { data: existing } = await db
+        const { data: existing, error: existingError } = await db
           .from('user_companies')
           .select('id')
           .eq('company_id', companyId)
           .eq('user_id', userData.id)
-          .single();
+          .maybeSingle(); // Use maybeSingle() to handle null case
+
+        if (existingError && existingError.code !== 'PGRST116') {
+          logger.error('Error checking existing membership', { existingError, userId: userData.id, companyId });
+          throw new AppError('Failed to check existing membership', 500);
+        }
 
         if (existing) {
           throw new AppError('User is already a member of this company', 409);
@@ -403,6 +426,22 @@ export class CompanyService {
 
         if (error) throw new AppError(error.message, 500);
 
+        // Send notification email to existing user
+        try {
+          const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+          const dashboardUrl = `${baseUrl}/dashboard`;
+          
+          await EmailService.sendCompanyMemberAddedEmail(
+            email,
+            companyData.name,
+            dashboardUrl
+          );
+          logger.info('Company member added email sent', { email, companyId });
+        } catch (emailError) {
+          logger.error('Failed to send member added email', { email, error: emailError });
+          // Don't fail the invite if email fails
+        }
+
         logger.info('User added to company directly', { userId: userData.id, companyId, email });
         return { ...newMember, isNewUser: false };
       }
@@ -414,14 +453,19 @@ export class CompanyService {
       expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
       // Check for existing pending invite
-      const { data: existingInvite } = await db
+      const { data: existingInvite, error: existingInviteError } = await db
         .from('company_invites')
         .select('id')
         .eq('company_id', companyId)
-        .eq('email', email)
+        .eq('email', email.trim().toLowerCase())
         .eq('status', 'pending')
         .gt('expires_at', new Date().toISOString())
-        .single();
+        .maybeSingle(); // Use maybeSingle() to handle null case
+
+      if (existingInviteError && existingInviteError.code !== 'PGRST116') {
+        logger.error('Error checking existing invite', { existingInviteError, email, companyId });
+        throw new AppError('Failed to check existing invitations', 500);
+      }
 
       if (existingInvite) {
         throw new AppError('An invitation has already been sent to this email', 409);
@@ -463,8 +507,21 @@ export class CompanyService {
       return { invite, link: inviteLink, isNewUser: true };
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error('Failed to invite user', { error, email, companyId });
-      throw new AppError('Failed to invite user', 500);
+      
+      // Log the full error details for debugging
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error('Failed to invite user', { 
+        error: errorMessage,
+        stack: errorStack,
+        email, 
+        companyId,
+        inviterId,
+        role,
+        errorDetails: error
+      });
+      
+      throw new AppError(`Failed to invite user: ${errorMessage}`, 500);
     }
   }
 

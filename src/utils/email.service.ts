@@ -415,7 +415,7 @@ export class EmailService {
   }
 
   /**
-   * Send company invitation email
+   * Send company invitation email (for new users)
    */
   static async sendCompanyInvitationEmail(email: string, companyName: string, inviteLink: string) {
     const subject = `You've been invited to join ${companyName} on Zyndrx`;
@@ -425,7 +425,26 @@ export class EmailService {
       <p>Click the link below to create your account and accept the invitation:</p>
       <p><a href="${inviteLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Accept Invitation</a></p>
       <p>This invitation link expires in 7 days.</p>
+      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+      <p>${inviteLink}</p>
       <p>If you didn't request this invitation, you can safely ignore this email.</p>
+    `;
+    await this.sendEmail(email, subject, html);
+  }
+
+  /**
+   * Send notification email when existing user is added to company
+   */
+  static async sendCompanyMemberAddedEmail(email: string, companyName: string, companyUrl: string) {
+    const subject = `You've been added to ${companyName} on Zyndrx`;
+    const html = `
+      <h2>Welcome to ${companyName}!</h2>
+      <p>You have been added as a member of <strong>${companyName}</strong> on Zyndrx.</p>
+      <p>Click the link below to access your workspace:</p>
+      <p><a href="${companyUrl}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Go to Workspace</a></p>
+      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+      <p>${companyUrl}</p>
+      <p>Best regards,<br>The Zyndrx Team</p>
     `;
     await this.sendEmail(email, subject, html);
   }
