@@ -448,6 +448,25 @@ export class EmailService {
     `;
     await this.sendEmail(email, subject, html);
   }
+
+  /**
+   * Send email verification email
+   */
+  static async sendVerificationEmail(email: string, fullName: string, verificationLink: string) {
+    const subject = 'Verify your Zyndrx email address';
+    const html = `
+      <h2>Verify Your Email</h2>
+      <p>Hi ${fullName},</p>
+      <p>Please verify your email address by clicking the link below:</p>
+      <p><a href="${verificationLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Verify Email</a></p>
+      <p>This link expires in 24 hours.</p>
+      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+      <p>${verificationLink}</p>
+      <p>If you didn't create an account, you can safely ignore this email.</p>
+      <p>Best regards,<br>The Zyndrx Team</p>
+    `;
+    await this.sendEmail(email, subject, html);
+  }
 }
 
 export default EmailService;

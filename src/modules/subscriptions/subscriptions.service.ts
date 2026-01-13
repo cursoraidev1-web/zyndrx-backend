@@ -620,13 +620,19 @@ export class SubscriptionService {
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       
-      // Try to update existing record
+      // Try to get existing record (use maybeSingle to handle no record case)
       const { data: existing, error: selectError } = await (db
         .from('email_usage') as any)
         .select('id, emails_sent')
         .eq('company_id', companyId)
         .eq('usage_date', today)
-        .single();
+        .maybeSingle();
+
+      if (selectError && selectError.code !== 'PGRST116') {
+        // PGRST116 is "not found" which is OK, other errors are not
+        logger.error('Failed to check email usage', { error: selectError, companyId });
+        return;
+      }
 
       if (existing) {
         // Update existing record
@@ -640,6 +646,12 @@ export class SubscriptionService {
 
         if (updateError) {
           logger.error('Failed to update email usage', { error: updateError, companyId });
+          throw new AppError(`Failed to update email usage: ${updateError.message}`, 500);
+        } else {
+          logger.info('Email usage updated successfully', { 
+            companyId, 
+            emailsSent: ((existing as any).emails_sent || 0) + 1 
+          });
         }
       } else {
         // Create new record for today
@@ -649,15 +661,22 @@ export class SubscriptionService {
             company_id: companyId,
             usage_date: today,
             emails_sent: 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           });
 
         if (insertError) {
           logger.error('Failed to insert email usage', { error: insertError, companyId });
+          throw new AppError(`Failed to insert email usage: ${insertError.message}`, 500);
+        } else {
+          logger.info('Email usage created successfully', { companyId, emailsSent: 1 });
         }
       }
     } catch (error) {
+      if (error instanceof AppError) throw error;
       logger.error('Failed to track email usage', { error, companyId });
       // Don't throw - email tracking failure shouldn't block email sending
+      // But log it so we can debug
     }
   }
 
@@ -675,12 +694,17 @@ export class SubscriptionService {
       const maxLimit = limits?.maxEmailsPerDay || 15;
 
       const today = new Date().toISOString().split('T')[0];
-      const { data: usageData } = await (db
+      const { data: usageData, error: usageError } = await (db
         .from('email_usage') as any)
         .select('emails_sent')
         .eq('company_id', companyId)
         .eq('usage_date', today)
-        .single();
+        .maybeSingle(); // Use maybeSingle to handle no record case
+
+      // If error and it's not "not found", log it
+      if (usageError && usageError.code !== 'PGRST116') {
+        logger.warn('Error fetching email usage', { error: usageError, companyId });
+      }
 
       const currentUsage = (usageData as any)?.emails_sent || 0;
       const remaining = maxLimit === -1 ? -1 : Math.max(0, maxLimit - currentUsage);

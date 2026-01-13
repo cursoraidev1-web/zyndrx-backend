@@ -157,12 +157,14 @@ export class AuthService {
         throw new AppError('User with this email already exists', 409);
       }
 
-      // Create Auth User (email verification required)
-      logger.info('Creating auth user', { email: data.email });
+      // Create Auth User
+      // Auto-confirm email if user was invited (they already verified their email by accepting invitation)
+      const shouldAutoConfirm = !!data.invitationToken;
+      logger.info('Creating auth user', { email: data.email, autoConfirm: shouldAutoConfirm });
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
-        email_confirm: false, // Require email verification
+        email_confirm: shouldAutoConfirm, // Auto-confirm if invited, otherwise require verification
         user_metadata: { full_name: data.fullName, role: data.role || 'developer' },
       });
 
@@ -176,19 +178,37 @@ export class AuthService {
         throw new AppError(`Failed to create user: ${authError?.message}`, 500);
       }
 
-      logger.info('Auth user created successfully', { userId: authData.user.id, email: data.email });
+      logger.info('Auth user created successfully', { userId: authData.user.id, email: data.email, emailConfirmed: shouldAutoConfirm });
 
-      // Send verification email
-      try {
-        // Use inviteUser to send verification email (doesn't require password)
-        const { error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
-          redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
-        });
-        if (emailError) {
-          logger.warn('Failed to send verification email during registration', { error: emailError });
+      // Send verification email only if email is not auto-confirmed
+      if (!shouldAutoConfirm) {
+        try {
+          // Generate verification link for existing user
+          const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'signup',
+            email: data.email,
+            options: {
+              redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
+            }
+          });
+
+          if (!linkError && linkData?.properties?.action_link) {
+            // Send verification email via EmailService
+            const EmailService = (await import('../../utils/email.service')).default;
+            await EmailService.sendVerificationEmail(
+              data.email,
+              data.fullName || 'User',
+              linkData.properties.action_link
+            );
+            logger.info('Verification email sent during registration', { email: data.email });
+          } else {
+            logger.warn('Failed to generate verification link during registration', { error: linkError, email: data.email });
+          }
+        } catch (emailErr) {
+          logger.warn('Error sending verification email during registration', { error: emailErr, email: data.email });
         }
-      } catch (emailErr) {
-        logger.warn('Error sending verification email', { error: emailErr });
+      } else {
+        logger.info('Email auto-confirmed for invited user', { email: data.email });
       }
 
       // Sync Profile - Wait for trigger to create user profile
@@ -1309,34 +1329,33 @@ export class AuthService {
         };
       }
 
-      // Generate verification link using magic link
-      // For unverified users, we can use inviteUserByEmail which sends a confirmation email
-      const { data: inviteData, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
-        data: {
-          resend_verification: true
+      // Generate verification link
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'signup', // Use signup type for email verification
+        email: email,
+        options: {
+          redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
         }
       });
 
-      if (error) {
-        // If inviteUserByEmail fails (user already exists), try generating a magic link
-        try {
-          const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'magiclink',
-            email: email,
-            options: {
-              redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
-            }
-          });
-          
-          if (linkError) {
-            logger.error('Failed to resend verification email', { error: linkError.message, email });
-            throw new AppError('Failed to send verification email', 500);
-          }
-        } catch (linkErr: any) {
-          logger.error('Failed to resend verification email', { error: linkErr.message || linkErr, email });
-          throw new AppError('Failed to send verification email', 500);
-        }
+      if (linkError || !linkData?.properties?.action_link) {
+        logger.error('Failed to generate verification link', { error: linkError, email });
+        throw new AppError('Failed to generate verification link', 500);
+      }
+
+      // Actually send the verification email via EmailService
+      try {
+        const EmailService = (await import('../../utils/email.service')).default;
+        const fullName = foundUser.user_metadata?.full_name || foundUser.user_metadata?.name || 'User';
+        await EmailService.sendVerificationEmail(
+          email,
+          fullName,
+          linkData.properties.action_link
+        );
+        logger.info('Verification email sent successfully via EmailService', { email });
+      } catch (emailError: any) {
+        logger.error('Failed to send verification email via EmailService', { error: emailError, email });
+        throw new AppError('Failed to send verification email', 500);
       }
 
       logger.info('Verification email sent successfully', { email });
