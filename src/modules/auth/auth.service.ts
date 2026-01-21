@@ -329,17 +329,18 @@ export class AuthService {
       } else {
         // Create company for the user (subscription is created automatically in createCompany)
         // If no company name provided, generate a default one
+        // auth.service.ts - Improved Fallback Logic
         let companyName = data.companyName?.trim() || '';
-        
-        // If company name is empty or only whitespace, generate a default one
+
         if (!companyName) {
-          const userName = (data.fullName || user.full_name || 'User').trim();
-          companyName = userName ? `${userName}'s Workspace` : 'My Workspace';
+          // Use fullName from request or default to 'User'
+          const userName = (data.fullName || 'New User').trim();
+          companyName = `${userName}'s Workspace`;
         }
 
-        // Final validation - ensure company name is not empty
-        if (!companyName || !companyName.trim()) {
-          companyName = 'My Workspace';
+        // Final safety check before calling CompanyService
+        if (!companyName.trim()) {
+          companyName = 'My Workspace'; 
         }
 
         logger.info('Creating company for user', { userId: user.id, companyName });
