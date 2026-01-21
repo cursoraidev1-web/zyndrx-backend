@@ -185,12 +185,13 @@ export class AuthService {
         try {
           // Generate verification link for existing user
           const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'signup',
+            type: 'invite',
             email: data.email,
             options: {
               redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
-            }
+            },
           });
+
 
           if (!linkError && linkData?.properties?.action_link) {
             // Send verification email via EmailService
@@ -1330,13 +1331,15 @@ export class AuthService {
       }
 
       // Generate verification link
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'signup', // Use signup type for email verification
-        email: email,
-        options: {
-          redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
-        }
-      });
+const { data: linkData, error: linkError } =
+  await supabaseAdmin.auth.admin.generateLink({
+    type: 'invite',
+    email,
+    options: {
+      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`,
+    },
+  });
+
 
       if (linkError || !linkData?.properties?.action_link) {
         logger.error('Failed to generate verification link', { error: linkError, email });
