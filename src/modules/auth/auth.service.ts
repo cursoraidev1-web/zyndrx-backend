@@ -347,7 +347,7 @@ export class AuthService {
         try {
           company = await CompanyService.createCompany({
             name: companyName.trim(),
-            userId: user.id,
+            userId: authData.user.id,
           });
 
           if (!company || !company.id) {
