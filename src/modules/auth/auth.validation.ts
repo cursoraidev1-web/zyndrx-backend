@@ -18,7 +18,7 @@ export const registerSchema = z.object({
         return !commonPatterns.some(pattern => lowerPwd.includes(pattern));
       }, 'Password cannot contain common patterns'),
     fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-    companyName: z.string().min(1, 'Company name is required').max(100, 'Company name too long').optional(),
+    companyName: z.string().max(100, 'Company name too long').optional(),
     role: z.enum(['admin', 'product_manager', 'developer', 'qa', 'devops', 'designer']).optional(),
     invitationToken: z.string().optional(), // For accepting company invitations
   }),
